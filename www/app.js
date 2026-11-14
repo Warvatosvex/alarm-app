@@ -25,40 +25,48 @@ import { LocalNotifications } from '@capacitor/local-notifications';
     let sirenTimer = null, sirenOsc = [], sirenGain = null;
     let wakeLock = null;
 
-    const dom = {
-        topClock: document.getElementById('top-clock'),
-        banner: document.getElementById('next-alarm-banner'),
-        alarmList: document.getElementById('alarm-list'),
-        fab: document.getElementById('fab-add'),
-        modal: document.getElementById('alarm-modal'),
-        mTime: document.getElementById('edit-time'),
-        mLabel: document.getElementById('edit-label'),
-        mDiff: document.getElementById('edit-difficulty'),
-        mRounds: document.getElementById('edit-rounds'),
-        mDiffLabel: document.getElementById('val-diff-label'),
-        mRoundsLabel: document.getElementById('val-rounds'),
-        btnSave: document.getElementById('btn-save'),
-        btnDelete: document.getElementById('btn-delete'),
-        btnClose: document.getElementById('modal-close'),
-        ringOverlay: document.getElementById('ringing-overlay'),
-        ringClock: document.getElementById('ring-clock'),
-        ringLabel: document.getElementById('ring-label'),
-        ringInfo: document.getElementById('ring-task-info'),
-        ringProgress: document.getElementById('ring-progress-bar'),
-        ringFeedback: document.getElementById('ring-feedback'),
-        taskBody: document.getElementById('task-body')
-    };
+    let dom = {};
+
+    function cacheDom() {
+        dom.topClock = document.getElementById('top-clock');
+        dom.banner = document.getElementById('next-alarm-banner');
+        dom.alarmList = document.getElementById('alarm-list');
+        dom.fab = document.getElementById('fab-add');
+        dom.modal = document.getElementById('alarm-modal');
+        dom.mTime = document.getElementById('edit-time');
+        dom.mLabel = document.getElementById('edit-label');
+        dom.mDiff = document.getElementById('edit-difficulty');
+        dom.mRounds = document.getElementById('edit-rounds');
+        dom.mDiffLabel = document.getElementById('val-diff-label');
+        dom.mRoundsLabel = document.getElementById('val-rounds');
+        dom.btnSave = document.getElementById('btn-save');
+        dom.btnDelete = document.getElementById('btn-delete');
+        dom.btnClose = document.getElementById('modal-close');
+        dom.ringOverlay = document.getElementById('ringing-overlay');
+        dom.ringClock = document.getElementById('ring-clock');
+        dom.ringLabel = document.getElementById('ring-label');
+        dom.ringInfo = document.getElementById('ring-task-info');
+        dom.ringProgress = document.getElementById('ring-progress-bar');
+        dom.ringFeedback = document.getElementById('ring-feedback');
+        dom.taskBody = document.getElementById('task-body');
+    }
 
     const diffNames = ["", "Лёгкий", "Обычный", "Средний", "Сложный", "Хардкор"];
 
     async function init() {
+        cacheDom();
+
         if (Capacitor.isNativePlatform()) {
-            await LocalNotifications.requestPermissions();
-            LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
-                const alarmId = notificationAction.notification.extra.alarmId;
-                const alarm = state.alarms.find(a => a.id === alarmId);
-                if (alarm) startRinging(alarm);
-            });
+            try {
+                await LocalNotifications.requestPermissions();
+                LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+                    const alarmId = notificationAction.notification.extra.alarmId;
+                    const alarm = state.alarms.find(a => a.id === alarmId);
+                    if (alarm) startRinging(alarm);
+                });
+            } catch (e) {
+                console.error("LocalNotifications init error:", e);
+            }
         }
 
         renderList();
@@ -70,9 +78,9 @@ import { LocalNotifications } from '@capacitor/local-notifications';
     function tick() {
         const now = new Date();
         const timeStr = now.toTimeString().split(' ')[0];
-        dom.topClock.textContent = timeStr;
+        if (dom.topClock) dom.topClock.textContent = timeStr;
 
-        if (state.isRinging) {
+        if (state.isRinging && dom.ringClock) {
             dom.ringClock.textContent = timeStr.substring(0, 5);
         }
 
@@ -85,71 +93,105 @@ import { LocalNotifications } from '@capacitor/local-notifications';
     }
 
     function bindEvents() {
-        dom.fab.onclick = () => openModal();
-        dom.btnClose.onclick = () => closeModal();
-        dom.mDiff.oninput = () => dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
-        dom.mRounds.oninput = () => dom.mRoundsLabel.textContent = dom.mRounds.value;
-        dom.btnSave.onclick = save;
-        dom.btnDelete.onclick = del;
+        if (dom.fab) {
+            dom.fab.addEventListener('click', () => openModal());
+            dom.fab.addEventListener('touchstart', (e) => { e.preventDefault(); openModal(); });
+        }
+        if (dom.btnClose) {
+            dom.btnClose.addEventListener('click', () => closeModal());
+            dom.btnClose.addEventListener('touchstart', (e) => { e.preventDefault(); closeModal(); });
+        }
+        if (dom.mDiff) {
+            dom.mDiff.addEventListener('input', () => {
+                if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
+            });
+        }
+        if (dom.mRounds) {
+            dom.mRounds.addEventListener('input', () => {
+                if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = dom.mRounds.value;
+            });
+        }
+        if (dom.btnSave) {
+            dom.btnSave.addEventListener('click', save);
+            dom.btnSave.addEventListener('touchstart', (e) => { e.preventDefault(); save(); });
+        }
+        if (dom.btnDelete) {
+            dom.btnDelete.addEventListener('click', del);
+            dom.btnDelete.addEventListener('touchstart', (e) => { e.preventDefault(); del(); });
+        }
 
         document.querySelectorAll('.radio-card').forEach(c => {
-            c.onclick = () => {
-                c.querySelector('input').checked = true;
-                updateRadioUI();
+            const handleRadio = (e) => {
+                e.preventDefault();
+                const radio = c.querySelector('input');
+                if (radio) {
+                    radio.checked = true;
+                    updateRadioUI();
+                }
             };
+            c.addEventListener('click', handleRadio);
+            c.addEventListener('touchstart', handleRadio);
         });
     }
 
     function updateRadioUI() {
         document.querySelectorAll('.radio-card').forEach(c => {
-            c.classList.toggle('selected', c.querySelector('input').checked);
+            const radio = c.querySelector('input');
+            c.classList.toggle('selected', radio && radio.checked);
         });
     }
 
     function openModal(id = null) {
         state.editingId = id;
         const a = id ? state.alarms.find(x => x.id === id) : null;
-        dom.mTime.value = a ? a.time : "07:30";
-        dom.mLabel.value = a ? a.label : "";
-        dom.mDiff.value = a ? a.difficulty : 3;
-        dom.mRounds.value = a ? a.rounds : 5;
-        dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
-        dom.mRoundsLabel.textContent = dom.mRounds.value;
+        if (dom.mTime) dom.mTime.value = a ? a.time : "07:30";
+        if (dom.mLabel) dom.mLabel.value = a ? a.label : "";
+        if (dom.mDiff) dom.mDiff.value = a ? a.difficulty : 3;
+        if (dom.mRounds) dom.mRounds.value = a ? a.rounds : 5;
+        if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
+        if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = dom.mRounds.value;
         const mode = a ? a.mode : 'math';
-        document.querySelector(`input[name="edit-mode"][value="${mode}"]`).checked = true;
+        const modeInput = document.querySelector(`input[name="edit-mode"][value="${mode}"]`);
+        if (modeInput) modeInput.checked = true;
         updateRadioUI();
-        dom.btnDelete.style.display = a ? "flex" : "none"; // Use flex for button
-        dom.modal.classList.add('active');
+        if (dom.btnDelete) dom.btnDelete.style.display = a ? "flex" : "none";
+        if (dom.modal) dom.modal.classList.add('active');
     }
 
-    function closeModal() { dom.modal.classList.remove('active'); }
+    function closeModal() {
+        if (dom.modal) dom.modal.classList.remove('active');
+    }
 
     async function save() {
         const newAlarm = {
             id: state.editingId || Date.now().toString(),
-            time: dom.mTime.value,
-            label: dom.mLabel.value || "Будильник",
-            difficulty: parseInt(dom.mDiff.value),
-            rounds: parseInt(dom.mRounds.value),
-            mode: document.querySelector('input[name="edit-mode"]:checked').value,
+            time: dom.mTime ? dom.mTime.value : "07:30",
+            label: dom.mLabel && dom.mLabel.value ? dom.mLabel.value : "Будильник",
+            difficulty: dom.mDiff ? parseInt(dom.mDiff.value) : 3,
+            rounds: dom.mRounds ? parseInt(dom.mRounds.value) : 5,
+            mode: (document.querySelector('input[name="edit-mode"]:checked') || {}).value || 'math',
             enabled: true
         };
 
         if (state.editingId) {
             const i = state.alarms.findIndex(x => x.id === state.editingId);
-            state.alarms[i] = newAlarm;
+            if (i !== -1) state.alarms[i] = newAlarm;
         } else {
             state.alarms.push(newAlarm);
         }
 
-        await syncAndSchedule(newAlarm); // Schedule after save
+        await syncAndSchedule(newAlarm);
         closeModal();
     }
 
     async function del() {
         if (!state.editingId) return;
         if (Capacitor.isNativePlatform()) {
-            await LocalNotifications.cancel({ notifications: [{ id: parseInt(state.editingId) }] });
+            try {
+                await LocalNotifications.cancel({ notifications: [{ id: parseInt(state.editingId) }] });
+            } catch (e) {
+                console.error("Cancel notification error:", e);
+            }
         }
         state.alarms = state.alarms.filter(x => x.id !== state.editingId);
         sync();
@@ -162,7 +204,11 @@ import { LocalNotifications } from '@capacitor/local-notifications';
         updateBanner();
 
         if (Capacitor.isNativePlatform() && alarm.enabled) {
-            await scheduleNotification(alarm);
+            try {
+                await scheduleNotification(alarm);
+            } catch (e) {
+                console.error("Schedule notification error:", e);
+            }
         }
     }
 
@@ -173,9 +219,10 @@ import { LocalNotifications } from '@capacitor/local-notifications';
     }
 
     function renderList() {
+        if (!dom.alarmList) return;
         dom.alarmList.innerHTML = state.alarms.sort((a,b) => a.time.localeCompare(b.time)).map(a => `
-            <div class="alarm-card ${a.enabled ? '' : 'disabled'}" onclick="window.alarmApp.edit('${a.id}')">
-                <div class="alarm-card-left">
+            <div class="alarm-card ${a.enabled ? '' : 'disabled'}" data-alarm-id="${a.id}">
+                <div class="alarm-card-left" data-action="edit" data-alarm-id="${a.id}">
                     <div class="alarm-card-time">${a.time}</div>
                     <div class="alarm-card-label">${a.label}</div>
                     <div class="alarm-card-meta">
@@ -183,15 +230,47 @@ import { LocalNotifications } from '@capacitor/local-notifications';
                         <span class="badge">${a.mode.toUpperCase()} × ${a.rounds}</span>
                     </div>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" ${a.enabled ? 'checked' : ''} onchange="window.alarmApp.toggle('${a.id}', event)">
+                <label class="switch" data-action="toggle" data-alarm-id="${a.id}">
+                    <input type="checkbox" ${a.enabled ? 'checked' : ''} data-alarm-id="${a.id}">
                     <span class="slider"></span>
                 </label>
             </div>
         `).join('');
+
+        // Attach listeners securely via JS to ensure 100% click/touch responsiveness in WebView
+        dom.alarmList.querySelectorAll('.alarm-card').forEach(card => {
+            const alarmId = card.dataset.alarmId;
+            const leftPart = card.querySelector('.alarm-card-left');
+            const switchInput = card.querySelector('input[type="checkbox"]');
+
+            const handleCardClick = (e) => {
+                e.stopPropagation();
+                openModal(alarmId);
+            };
+
+            const handleSwitchChange = async (e) => {
+                e.stopPropagation();
+                const a = state.alarms.find(x => x.id === alarmId);
+                if (a) {
+                    a.enabled = switchInput.checked;
+                    await syncAndSchedule(a);
+                }
+            };
+
+            if (leftPart) {
+                leftPart.addEventListener('click', handleCardClick);
+                leftPart.addEventListener('touchstart', (e) => { e.preventDefault(); handleCardClick(e); });
+            }
+
+            if (switchInput) {
+                switchInput.addEventListener('change', handleSwitchChange);
+                switchInput.addEventListener('click', (e) => e.stopPropagation());
+            }
+        });
     }
 
     function updateBanner() {
+        if (!dom.banner) return;
         const now = new Date();
         let min = Infinity;
         state.alarms.forEach(a => {
@@ -210,10 +289,14 @@ import { LocalNotifications } from '@capacitor/local-notifications';
         }
     }
 
-    // --- ALARM LOGIC (for native and web) ---
     async function scheduleOrTrigger(alarm) {
         if (Capacitor.isNativePlatform()) {
-            await scheduleNotification(alarm);
+            try {
+                await scheduleNotification(alarm);
+            } catch (e) {
+                console.error("scheduleOrTrigger error:", e);
+                startRinging(alarm);
+            }
         } else {
             startRinging(alarm);
         }
@@ -232,10 +315,10 @@ import { LocalNotifications } from '@capacitor/local-notifications';
             notifications: [
                 {
                     title: alarm.label || "Будильник",
-                    body: `Время: ${alarm.time}. Задание: ${diffNames[alarm.difficulty]} ${alarm.mode.toUpperCase()} (${alarm.rounds} раундов)`, // Using alarm.label here
-                    id: parseInt(alarm.id), // Ensure ID is a number
-                    schedule: { at: fireDate, repeats: 'every day' }, // for repeating alarms
-                    sound: "res://platform_default", // Use default notification sound
+                    body: `Время: ${alarm.time}. Задание: ${diffNames[alarm.difficulty]} ${alarm.mode.toUpperCase()} (${alarm.rounds} раундов)`,
+                    id: parseInt(alarm.id),
+                    schedule: { at: fireDate, repeats: 'every day' },
+                    sound: "res://platform_default",
                     wakeUpScreen: true,
                     foreground: true,
                     autoCancel: false,
@@ -243,51 +326,60 @@ import { LocalNotifications } from '@capacitor/local-notifications';
                 }
             ]
         });
-        console.log('Scheduled notification for alarm:', alarm.id, fireDate);
     }
 
-    async function startRinging(alarm) {
+    function startRinging(alarm) {
         state.isRinging = true;
         state.activeAlarm = alarm;
 
-        dom.ringLabel.textContent = alarm.label || "Будильник";
-        dom.ringingOverlay.classList.remove('hidden');
+        if (dom.ringLabel) dom.ringLabel.textContent = alarm.label || "Будильник";
+        if (dom.ringOverlay) dom.ringOverlay.classList.remove('hidden');
 
         startSound();
         taskState = { step: 0, total: alarm.rounds, difficulty: alarm.difficulty, mode: alarm.mode };
         nextTask();
 
         if (Capacitor.isNativePlatform()) {
-            // Cancel the scheduled notification once it's acted upon
-            await LocalNotifications.cancel({ notifications: [{ id: parseInt(alarm.id) }] });
-            // Re-schedule for next day if repeating
-            if (alarm.enabled) scheduleNotification(alarm);
+            LocalNotifications.cancel({ notifications: [{ id: parseInt(alarm.id) }] }).catch(() => {});
+            if (alarm.enabled) scheduleNotification(alarm).catch(() => {});
         }
     }
 
     function startSound() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        sirenGain = audioCtx.createGain();
-        sirenGain.connect(audioCtx.destination);
-        sirenGain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        sirenGain.gain.exponentialRampToValueAtTime(0.8, audioCtx.currentTime + 5);
-        for(let i=0; i<2; i++) {
-            const o = audioCtx.createOscillator();
-            o.type = i===0 ? 'sawtooth' : 'square';
-            o.frequency.value = i===0 ? 440 : 660;
-            o.connect(sirenGain);
-            o.start();
-            sirenOsc.push(o);
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            sirenGain = audioCtx.createGain();
+            sirenGain.connect(audioCtx.destination);
+            sirenGain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            sirenGain.gain.exponentialRampToValueAtTime(0.8, audioCtx.currentTime + 5);
+            for(let i=0; i<2; i++) {
+                const o = audioCtx.createOscillator();
+                o.type = i===0 ? 'sawtooth' : 'square';
+                o.frequency.value = i===0 ? 440 : 660;
+                o.connect(sirenGain);
+                o.start();
+                sirenOsc.push(o);
+            }
+            let up = true;
+            sirenTimer = setInterval(() => {
+                if (!sirenOsc[0] || !sirenOsc[1]) return;
+                const f1 = up ? 550 : 440, f2 = up ? 880 : 660;
+                sirenOsc[0].frequency.exponentialRampToValueAtTime(f1, audioCtx.currentTime + 0.3);
+                sirenOsc[1].frequency.exponentialRampToValueAtTime(f2, audioCtx.currentTime + 0.3);
+                up = !up;
+            }, 400);
+        } catch (e) {
+            console.error("Audio start error:", e);
         }
-        let up = true;
-        sirenTimer = setInterval(() => {
-            const f1 = up ? 550 : 440, f2 = up ? 880 : 660;
-            sirenOsc[0].frequency.exponentialRampToValueAtTime(f1, audioCtx.currentTime + 0.3);
-            sirenOsc[1].frequency.exponentialRampToValueAtTime(f2, audioCtx.currentTime + 0.3);
-            up = !up;
-        }, 400);
-        if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(l => wakeLock = l);
+
+        try {
+            if ('wakeLock' in navigator) {
+                navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
+            }
+        } catch (e) {
+            console.error("WakeLock error:", e);
+        }
     }
 
     async function stopSound() {
@@ -295,12 +387,13 @@ import { LocalNotifications } from '@capacitor/local-notifications';
         sirenOsc.forEach(o => { try{o.stop();}catch(e){} });
         sirenOsc = [];
         if (sirenGain) { sirenGain.gain.value = 0; sirenGain = null; }
-        if (wakeLock) { await wakeLock.release(); wakeLock = null; }
+        if (wakeLock) { try { await wakeLock.release(); } catch(e){} wakeLock = null; }
 
         if (Capacitor.isNativePlatform() && state.activeAlarm && state.activeAlarm.enabled) {
-            // Reschedule notification for next day if it's a repeating alarm
-            await LocalNotifications.cancel({ notifications: [{ id: parseInt(state.activeAlarm.id) }] });
-            await scheduleNotification(state.activeAlarm);
+            try {
+                await LocalNotifications.cancel({ notifications: [{ id: parseInt(state.activeAlarm.id) }] });
+                await scheduleNotification(state.activeAlarm);
+            } catch (e) {}
         }
     }
 
@@ -309,7 +402,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
         if (taskState.step > taskState.total) {
             state.isRinging = false;
             stopSound();
-            dom.ringOverlay.classList.add('hidden');
+            if (dom.ringOverlay) dom.ringOverlay.classList.add('hidden');
             return;
         }
         updateProgress();
@@ -317,14 +410,16 @@ import { LocalNotifications } from '@capacitor/local-notifications';
     }
 
     function updateProgress() {
-        dom.ringInfo.textContent = `Уровень ${taskState.difficulty} • Задание ${taskState.step} из ${taskState.total}`;
-        dom.ringProgress.style.width = `${(taskState.step-1)/taskState.total * 100}%`;
+        if (dom.ringInfo) dom.ringInfo.textContent = `Уровень ${taskState.difficulty} • Задание ${taskState.step} из ${taskState.total}`;
+        if (dom.ringProgress) dom.ringProgress.style.width = `${(taskState.step-1)/taskState.total * 100}%`;
     }
 
     function renderTask() {
+        if (!dom.taskBody) return;
         dom.taskBody.innerHTML = "";
-        dom.ringFeedback.textContent = "";
+        if (dom.ringFeedback) dom.ringFeedback.textContent = "";
         const d = taskState.difficulty;
+
         if (taskState.mode === 'math') {
             const p = genMath(d);
             taskState.currentAnswer = p.ans;
@@ -333,12 +428,16 @@ import { LocalNotifications } from '@capacitor/local-notifications';
                 <input type="number" id="ans-in" class="input-code" autofocus inputmode="numeric">
             `;
             const input = document.getElementById('ans-in');
-            input.oninput = () => {
-                if (parseInt(input.value) === taskState.currentAnswer) nextTask();
-            };
+            if (input) {
+                const checkMath = () => {
+                    if (parseInt(input.value) === taskState.currentAnswer) nextTask();
+                };
+                input.addEventListener('input', checkMath);
+                input.addEventListener('keyup', checkMath);
+            }
         } else if (taskState.mode === 'memory') {
             const size = d <= 2 ? 3 : (d <= 4 ? 4 : 5);
-            const count = 2 + d; // 3, 4, 5, 6, 7
+            const count = 2 + d;
             const seq = [];
             for(let i=0; i<count; i++) seq.push(Math.floor(Math.random() * size * size));
             taskState.memorySequence = seq;
@@ -361,31 +460,38 @@ import { LocalNotifications } from '@capacitor/local-notifications';
             const itv = setInterval(() => {
                 if (i < seq.length) {
                     const t = grid.children[seq[i]];
-                    t.classList.add('lit');
-                    setTimeout(() => t.classList.remove('lit'), speed/2);
+                    if (t) {
+                        t.classList.add('lit');
+                        setTimeout(() => t.classList.remove('lit'), speed/2);
+                    }
                     i++;
                 } else {
                     clearInterval(itv);
                     taskState.memoryPlaying = false;
-                    dom.ringFeedback.textContent = "Повторите!";
+                    if (dom.ringFeedback) dom.ringFeedback.textContent = "Повторите!";
                 }
             }, speed);
 
-            grid.onclick = (e) => {
+            const handleTileClick = (e) => {
                 if (taskState.memoryPlaying) return;
                 const t = e.target.closest('.memory-tile');
                 if (!t) return;
                 const idx = parseInt(t.dataset.idx);
-                t.classList.add('active'); setTimeout(() => t.classList.remove('active'), 100);
+                t.classList.add('active');
+                setTimeout(() => t.classList.remove('active'), 100);
+
                 if (idx === taskState.memorySequence[taskState.memoryUserIdx]) {
                     taskState.memoryUserIdx++;
                     if (taskState.memoryUserIdx === taskState.memorySequence.length) nextTask();
                 } else {
-                    dom.ringFeedback.textContent = "Ошибка!";
+                    if (dom.ringFeedback) dom.ringFeedback.textContent = "Ошибка!";
                     taskState.step = 0;
                     setTimeout(nextTask, 500);
                 }
             };
+
+            grid.addEventListener('click', handleTileClick);
+            grid.addEventListener('touchstart', (e) => { e.preventDefault(); handleTileClick(e); });
         } else {
             const code = genCode(d);
             taskState.currentAnswer = code;
@@ -394,9 +500,13 @@ import { LocalNotifications } from '@capacitor/local-notifications';
                 <input type="text" id="code-in" class="input-code" placeholder="Введите код" autofocus style="text-transform:none;">
             `;
             const input = document.getElementById('code-in');
-            input.oninput = () => {
-                if (input.value === taskState.currentAnswer) nextTask();
-            };
+            if (input) {
+                const checkCode = () => {
+                    if (input.value.trim() === taskState.currentAnswer) nextTask();
+                };
+                input.addEventListener('input', checkCode);
+                input.addEventListener('keyup', checkCode);
+            }
         }
     }
 
@@ -436,14 +546,18 @@ import { LocalNotifications } from '@capacitor/local-notifications';
     window.alarmApp = {
         edit: (id) => openModal(id),
         toggle: async (id, event) => {
-            event.stopPropagation(); // Prevent card click event
+            event.stopPropagation();
             const a = state.alarms.find(x => x.id === id);
             if (a) {
                 a.enabled = !a.enabled;
-                await syncAndSchedule(a); // Reschedule/cancel notification
+                await syncAndSchedule(a);
             }
         }
     };
 
-    init();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();
