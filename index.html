@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Умный Будильник</title>
+    <style>
+        :root {
+            --bg: #0c0f17;
+            --surface: #161c2b;
+            --surface-hover: #1f273d;
+            --surface-card: #182033;
+            --primary: #8ab4f8;
+            --primary-container: #1d3557;
+            --on-primary: #040d21;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+            --accent: #4facfe;
+            --accent-cyan: #00f2fe;
+            --danger: #ff5252;
+            --success: #00e676;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            pointer-events: auto;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            pointer-events: auto;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            max-height: 900px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: var(--bg);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+            pointer-events: auto;
+        }
+
+        @media (min-width: 500px) {
+            #app {
+                border-radius: 36px;
+                border: 2px solid var(--border);
+                height: 92vh;
+            }
+        }
+
+        /* App Bar */
+        .app-header {
+            padding: 20px 20px 12px 20px;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            pointer-events: auto;
+            z-index: 5;
+        }
+
+        .app-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title-row h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-test {
+            background: rgba(255, 152, 0, 0.15);
+            border: 1px solid #ff9800;
+            color: #ff9800;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .digital-clock-sm {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        .next-alarm-banner {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Alarm List */
+        .alarm-list-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto;
+        }
+
+        .alarm-card {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            pointer-events: auto;
+            z-index: 2;
+        }
+
+        .alarm-card.disabled {
+            opacity: 0.55;
+        }
+
+        .alarm-card-left {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: auto;
+            flex: 1;
+        }
+
+        .alarm-card-time {
+            font-size: 2.5rem;
+            font-weight: 300;
+            color: #ffffff;
+            line-height: 1;
+        }
+
+        .alarm-card-label {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .alarm-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 8px;
+            border-radius: 12px;
+            color: var(--primary);
+            border: 1px solid rgba(138, 180, 248, 0.2);
+        }
+
+        .badge.difficulty-5 { border-color: var(--danger); color: var(--danger); background: rgba(255, 82, 82, 0.1); }
+        .badge.difficulty-4 { border-color: #ff9800; color: #ff9800; }
+
+        /* Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 30px;
+            flex-shrink: 0;
+            pointer-events: auto;
+            z-index: 3;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.15);
+            transition: .3s;
+            border-radius: 30px;
+            pointer-events: auto;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(22px); background-color: var(--on-primary); }
+
+        /* FAB */
+        .fab {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            width: 64px;
+            height: 64px;
+            border-radius: 22px;
+            background: var(--primary);
+            color: var(--on-primary);
+            border: none;
+            font-size: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(138, 180, 248, 0.35);
+            z-index: 50;
+            pointer-events: auto;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            transform: translateY(100%);
+            pointer-events: none;
+        }
+
+        .modal-overlay.active {
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            pointer-events: auto;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-label { font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; }
+
+        .range-container { display: flex; flex-direction: column; gap: 10px; }
+        .range-info { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 700; color: var(--primary); }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            appearance: none;
+            outline: none;
+            pointer-events: auto;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        input[type="time"], input[type="text"], input[type="number"], select {
+            pointer-events: auto;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            width: 100%;
+        }
+
+        /* Days Selector */
+        .days-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+        .day-btn {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 0;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-dim);
+            cursor: pointer;
+        }
+        .day-btn.selected {
+            background: var(--primary);
+            color: var(--on-primary);
+            border-color: var(--primary);
+        }
+
+        /* Radio Cards */
+        .radio-grid { display: grid; gap: 10px; }
+        .radio-card {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .radio-card.selected { border-color: var(--primary); background: rgba(138, 180, 248, 0.1); }
+        .radio-card input { accent-color: var(--primary); pointer-events: auto; }
+
+        /* Modal Footer & Buttons */
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            pointer-events: auto;
+        }
+
+        .btn-modal {
+            flex: 1;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .btn-save { background: var(--primary); color: var(--on-primary); }
+        .btn-delete { background: rgba(255, 82, 82, 0.15); color: var(--danger); border: 1px solid var(--danger); }
+        .btn-icon { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; pointer-events: auto; }
+        .hidden { display: none !important; }
+
+        /* Ringing */
+        .ringing-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #0d0006;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            pointer-events: auto;
+        }
+
+        .ringing-overlay.hidden { display: none; pointer-events: none; }
+
+        .pulse-bg {
+            position: absolute;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(255,0,68,0.5) 0%, transparent 70%);
+            animation: pulse 1s infinite alternate;
+            pointer-events: none;
+        }
+
+        @keyframes pulse { 0% { opacity: 0.5; transform: scale(1); } 100% { opacity: 1; transform: scale(1.1); } }
+
+        .ringing-content { position: relative; z-index: 2; width: 100%; max-width: 400px; text-align: center; pointer-events: auto; }
+        .ring-time { font-size: 4.5rem; font-weight: 900; text-shadow: 0 0 20px var(--danger); color: white; }
+        .ring-label { font-size: 1.2rem; color: var(--text-dim); margin-bottom: 20px; font-weight: 600; }
+
+        .task-container {
+            margin-top: 10px;
+            background: rgba(20,3,10,0.95);
+            border: 2px solid var(--danger);
+            border-radius: 24px;
+            padding: 24px;
+            text-align: left;
+            pointer-events: auto;
+        }
+
+        .progress-info { display: flex; justify-content: space-between; margin-bottom: 12px; font-weight: 800; font-size: 0.9rem; color: #ff8a80; }
+        .progress-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
+        .progress-fill { height: 100%; background: var(--success); transition: width 0.3s; }
+        .feedback-alert { color: var(--danger); font-weight: 700; margin-bottom: 10px; text-align: center; }
+
+        /* Memory Grid */
+        .memory-grid { display: grid; gap: 8px; margin: 0 auto 20px; width: fit-content; pointer-events: auto; }
+        .memory-tile {
+            width: 60px; height: 60px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.1s;
+            pointer-events: auto;
+        }
+
+        .memory-tile.lit { background: white !important; box-shadow: 0 0 20px white; transform: scale(1.05); }
+        .memory-tile.active { transform: scale(0.95); }
+
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-4 { grid-template-columns: repeat(4, 1fr); }
+        .grid-5 { grid-template-columns: repeat(5, 1fr); }
+        .tile-sm { width: 45px; height: 45px; border-radius: 8px; }
+
+        .input-code {
+            width: 100%;
+            padding: 16px;
+            background: black;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            color: white;
+            font-size: 1.2rem;
+            text-align: center;
+            font-family: monospace;
+            letter-spacing: 2px;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header class="app-header">
+            <div class="app-title-row">
+                <h1><span>⏰</span> Будильник</h1>
+                <div class="header-actions">
+                    <button id="btn-test-alarm" class="btn-test">⚡ Тест</button>
+                    <div id="top-clock" class="digital-clock-sm">00:00:00</div>
+                </div>
+            </div>
+            <div id="next-alarm-banner" class="next-alarm-banner">
+                <span>🔔 Нет активных будильников</span>
+            </div>
+        </header>
+
+        <main id="alarm-list" class="alarm-list-container"></main>
+
+        <button id="fab-add" class="fab">+</button>
+
+        <!-- Edit Modal -->
+        <div id="alarm-modal" class="modal-overlay">
+            <div class="modal-header">
+                <button id="modal-close" class="btn-icon">✕</button>
+                <div id="modal-title" class="modal-title" style="font-weight:700;">Новый будильник</div>
+                <div style="width:24px;"></div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Время</label>
+                    <input type="time" id="edit-time" class="time-input-native" value="07:30">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Название</label>
+                    <input type="text" id="edit-label" placeholder="Напр: Работа" class="text-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Дни недели</label>
+                    <div class="days-grid" id="days-selector">
+                        <div class="day-btn" data-day="1">Пн</div>
+                        <div class="day-btn" data-day="2">Вт</div>
+                        <div class="day-btn" data-day="3">Ср</div>
+                        <div class="day-btn" data-day="4">Чт</div>
+                        <div class="day-btn" data-day="5">Пт</div>
+                        <div class="day-btn" data-day="6">Сб</div>
+                        <div class="day-btn" data-day="0">Вс</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Мелодия сирены</label>
+                    <select id="edit-sound">
+                        <option value="siren">Громкая сирена</option>
+                        <option value="bell">Резкий звонок</option>
+                        <option value="digital">Цифровой писк</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Сложность заданий: <span id="val-diff-label">Средний</span></label>
+                    <div class="range-container">
+                        <input type="range" id="edit-difficulty" min="1" max="5" value="3">
+                        <div class="range-info">
+                            <span>Лёгкий (1)</span>
+                            <span>Хардкор (5)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Количество раундов: <span id="val-rounds">5</span></label>
+                    <div class="range-container">
+                        <input type="range" id="edit-rounds" min="1" max="10" value="5">
+                        <div class="range-info">
+                            <span>1</span>
+                            <span>10</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Тип задания</label>
+                    <div class="radio-grid">
+                        <label class="radio-card" data-mode="math">
+                            <input type="radio" name="edit-mode" value="math" checked>
+                            <div>
+                                <div style="font-weight:700;">Математика</div>
+                                <div style="font-size:0.8rem; color:var(--text-dim);">Арифметика для пробуждения</div>
+                            </div>
+                        </label>
+                        <label class="radio-card" data-mode="memory">
+                            <input type="radio" name="edit-mode" value="memory">
+                            <div>
+                                <div style="font-weight:700;">Память</div>
+                                <div style="font-size:0.8rem; color:var(--text-dim);">Цветные плитки матрица</div>
+                            </div>
+                        </label>
+                        <label class="radio-card" data-mode="code">
+                            <input type="radio" name="edit-mode" value="code">
+                            <div>
+                                <div style="font-weight:700;">Код</div>
+                                <div style="font-size:0.8rem; color:var(--text-dim);">Сложный буквенно-цифровой пароль</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button id="btn-delete" class="btn-modal btn-delete hidden">Удалить</button>
+                    <button id="btn-save" class="btn-modal btn-save">Сохранить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ringing Overlay -->
+        <div id="ringing-overlay" class="ringing-overlay hidden">
+            <div class="pulse-bg"></div>
+            <div class="ringing-content">
+                <div class="ring-time" id="ring-clock">07:30</div>
+                <div id="ring-label" class="ring-label">Будильник</div>
+
+                <div class="task-container">
+                    <div class="progress-info">
+                        <span id="ring-task-info">Уровень 3 • Раунд 1 из 5</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="ring-progress-bar" class="progress-fill" style="width:0%;"></div>
+                    </div>
+                    <div id="ring-feedback" class="feedback-alert hidden"></div>
+                    <div id="task-body"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            let state = {
+                alarms: [],
+                editingId: null,
+                isRinging: false,
+                activeAlarm: null,
+                selectedDays: [1, 2, 3, 4, 5]
+            };
+
+            try {
+                const saved = localStorage.getItem('alarms_v5');
+                if (saved) state.alarms = JSON.parse(saved);
+            } catch (e) {
+                console.error("LocalStorage load error:", e);
+            }
+
+            let taskState = {
+                step: 0,
+                total: 0,
+                difficulty: 3,
+                mode: 'math',
+                currentAnswer: null,
+                memorySequence: [],
+                memoryUserIdx: 0,
+                memoryPlaying: false
+            };
+
+            let audioCtx = null;
+            let sirenTimer = null, sirenOsc = [], sirenGain = null;
+            let wakeLock = null;
+
+            const dom = {};
+
+            function cacheDom() {
+                dom.topClock = document.getElementById('top-clock');
+                dom.banner = document.getElementById('next-alarm-banner');
+                dom.alarmList = document.getElementById('alarm-list');
+                dom.fab = document.getElementById('fab-add');
+                dom.btnTest = document.getElementById('btn-test-alarm');
+                dom.modal = document.getElementById('alarm-modal');
+                dom.mTime = document.getElementById('edit-time');
+                dom.mLabel = document.getElementById('edit-label');
+                dom.mSound = document.getElementById('edit-sound');
+                dom.mDiff = document.getElementById('edit-difficulty');
+                dom.mRounds = document.getElementById('edit-rounds');
+                dom.mDiffLabel = document.getElementById('val-diff-label');
+                dom.mRoundsLabel = document.getElementById('val-rounds');
+                dom.btnSave = document.getElementById('btn-save');
+                dom.btnDelete = document.getElementById('btn-delete');
+                dom.btnClose = document.getElementById('modal-close');
+                dom.ringOverlay = document.getElementById('ringing-overlay');
+                dom.ringClock = document.getElementById('ring-clock');
+                dom.ringLabel = document.getElementById('ring-label');
+                dom.ringInfo = document.getElementById('ring-task-info');
+                dom.ringProgress = document.getElementById('ring-progress-bar');
+                dom.ringFeedback = document.getElementById('ring-feedback');
+                dom.taskBody = document.getElementById('task-body');
+            }
+
+            const diffNames = ["", "Лёгкий", "Обычный", "Средний", "Сложный", "Хардкор"];
+
+            function init() {
+                cacheDom();
+                renderList();
+                updateBanner();
+                bindEvents();
+                setInterval(tick, 1000);
+            }
+
+            function tick() {
+                const now = new Date();
+                const timeStr = now.toTimeString().split(' ')[0];
+                if (dom.topClock) dom.topClock.textContent = timeStr;
+
+                if (state.isRinging && dom.ringClock) {
+                    dom.ringClock.textContent = timeStr.substring(0, 5);
+                }
+
+                if (now.getSeconds() === 0 && !state.isRinging) {
+                    const current = timeStr.substring(0, 5);
+                    const currentDay = now.getDay();
+                    state.alarms.forEach(a => {
+                        if (a.enabled && a.time === current && (!a.days || a.days.length === 0 || a.days.includes(currentDay))) {
+                            startRinging(a);
+                        }
+                    });
+                }
+            }
+
+            function bindEvents() {
+                const openAddModal = () => openModal();
+                if (dom.fab) {
+                    dom.fab.addEventListener('click', openAddModal);
+                    dom.fab.addEventListener('touchstart', (e) => { e.preventDefault(); openAddModal(); });
+                }
+
+                const runTest = () => {
+                    startRinging({
+                        id: 'test',
+                        time: '00:00',
+                        label: 'Тестовый будильник',
+                        difficulty: 3,
+                        rounds: 3,
+                        mode: 'math',
+                        sound: 'siren'
+                    });
+                };
+                if (dom.btnTest) {
+                    dom.btnTest.addEventListener('click', runTest);
+                    dom.btnTest.addEventListener('touchstart', (e) => { e.preventDefault(); runTest(); });
+                }
+
+                const closeModalEvent = () => closeModal();
+                if (dom.btnClose) {
+                    dom.btnClose.addEventListener('click', closeModalEvent);
+                    dom.btnClose.addEventListener('touchstart', (e) => { e.preventDefault(); closeModalEvent(); });
+                }
+
+                if (dom.mDiff) {
+                    dom.mDiff.addEventListener('input', () => {
+                        if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
+                    });
+                }
+                if (dom.mRounds) {
+                    dom.mRounds.addEventListener('input', () => {
+                        if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = dom.mRounds.value;
+                    });
+                }
+
+                if (dom.btnSave) {
+                    dom.btnSave.addEventListener('click', save);
+                    dom.btnSave.addEventListener('touchstart', (e) => { e.preventDefault(); save(); });
+                }
+                if (dom.btnDelete) {
+                    dom.btnDelete.addEventListener('click', del);
+                    dom.btnDelete.addEventListener('touchstart', (e) => { e.preventDefault(); del(); });
+                }
+
+                document.querySelectorAll('.day-btn').forEach(btn => {
+                    const toggleDay = (e) => {
+                        e.preventDefault();
+                        const day = parseInt(btn.dataset.day);
+                        if (state.selectedDays.includes(day)) {
+                            state.selectedDays = state.selectedDays.filter(d => d !== day);
+                        } else {
+                            state.selectedDays.push(day);
+                        }
+                        btn.classList.toggle('selected', state.selectedDays.includes(day));
+                    };
+                    btn.addEventListener('click', toggleDay);
+                    btn.addEventListener('touchstart', toggleDay);
+                });
+
+                document.querySelectorAll('.radio-card').forEach(c => {
+                    const handleRadio = (e) => {
+                        e.preventDefault();
+                        const radio = c.querySelector('input');
+                        if (radio) {
+                            radio.checked = true;
+                            updateRadioUI();
+                        }
+                    };
+                    c.addEventListener('click', handleRadio);
+                    c.addEventListener('touchstart', handleRadio);
+                });
+            }
+
+            function updateRadioUI() {
+                document.querySelectorAll('.radio-card').forEach(c => {
+                    const radio = c.querySelector('input');
+                    c.classList.toggle('selected', radio && radio.checked);
+                });
+            }
+
+            function openModal(id = null) {
+                state.editingId = id;
+                const a = id ? state.alarms.find(x => x.id === id) : null;
+                if (dom.mTime) dom.mTime.value = a ? a.time : "07:30";
+                if (dom.mLabel) dom.mLabel.value = a ? a.label : "";
+                if (dom.mSound) dom.mSound.value = a ? a.sound : "siren";
+                if (dom.mDiff) dom.mDiff.value = a ? a.difficulty : 3;
+                if (dom.mRounds) dom.mRounds.value = a ? a.rounds : 5;
+                if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
+                if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = dom.mRounds.value;
+
+                state.selectedDays = a ? [...(a.days || [1,2,3,4,5])] : [1,2,3,4,5];
+                document.querySelectorAll('.day-btn').forEach(btn => {
+                    const day = parseInt(btn.dataset.day);
+                    btn.classList.toggle('selected', state.selectedDays.includes(day));
+                });
+
+                const mode = a ? a.mode : 'math';
+                const modeInput = document.querySelector(`input[name="edit-mode"][value="${mode}"]`);
+                if (modeInput) modeInput.checked = true;
+                updateRadioUI();
+
+                if (dom.btnDelete) dom.btnDelete.style.display = a ? "flex" : "none";
+                if (dom.modal) dom.modal.classList.add('active');
+            }
+
+            function closeModal() {
+                if (dom.modal) dom.modal.classList.remove('active');
+            }
+
+            function save() {
+                const newAlarm = {
+                    id: state.editingId || Date.now().toString(),
+                    time: dom.mTime ? dom.mTime.value : "07:30",
+                    label: dom.mLabel && dom.mLabel.value ? dom.mLabel.value : "Будильник",
+                    sound: dom.mSound ? dom.mSound.value : "siren",
+                    difficulty: dom.mDiff ? parseInt(dom.mDiff.value) : 3,
+                    rounds: dom.mRounds ? parseInt(dom.mRounds.value) : 5,
+                    days: [...state.selectedDays],
+                    mode: (document.querySelector('input[name="edit-mode"]:checked') || {}).value || 'math',
+                    enabled: true
+                };
+
+                if (state.editingId) {
+                    const i = state.alarms.findIndex(x => x.id === state.editingId);
+                    if (i !== -1) state.alarms[i] = newAlarm;
+                } else {
+                    state.alarms.push(newAlarm);
+                }
+
+                syncAndPersist();
+                closeModal();
+            }
+
+            function del() {
+                if (!state.editingId) return;
+                state.alarms = state.alarms.filter(x => x.id !== state.editingId);
+                syncAndPersist();
+                closeModal();
+            }
+
+            function syncAndPersist() {
+                try {
+                    localStorage.setItem('alarms_v5', JSON.stringify(state.alarms));
+                } catch (e) {
+                    console.error("LocalStorage save error:", e);
+                }
+                renderList();
+                updateBanner();
+            }
+
+            const dayNamesShort = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+
+            function renderList() {
+                if (!dom.alarmList) return;
+                dom.alarmList.innerHTML = state.alarms.sort((a,b) => a.time.localeCompare(b.time)).map(a => {
+                    const daysText = (!a.days || a.days.length === 7) ? "Каждый день" : (a.days.length === 0 ? "Один раз" : a.days.map(d => dayNamesShort[d]).join(', '));
+                    return `
+                        <div class="alarm-card ${a.enabled ? '' : 'disabled'}" data-alarm-id="${a.id}">
+                            <div class="alarm-card-left" data-alarm-id="${a.id}">
+                                <div class="alarm-card-time">${a.time}</div>
+                                <div class="alarm-card-label">${a.label}</div>
+                                <div class="alarm-card-meta">
+                                    <span class="badge">${daysText}</span>
+                                    <span class="badge difficulty-${a.difficulty}">${diffNames[a.difficulty]}</span>
+                                    <span class="badge">${a.mode.toUpperCase()} × ${a.rounds}</span>
+                                </div>
+                            </div>
+                            <label class="switch" data-alarm-id="${a.id}">
+                                <input type="checkbox" ${a.enabled ? 'checked' : ''} data-alarm-id="${a.id}">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    `;
+                }).join('');
+
+                dom.alarmList.querySelectorAll('.alarm-card').forEach(card => {
+                    const alarmId = card.dataset.alarmId;
+                    const leftPart = card.querySelector('.alarm-card-left');
+                    const switchInput = card.querySelector('input[type="checkbox"]');
+
+                    const handleCardClick = (e) => {
+                        e.stopPropagation();
+                        openModal(alarmId);
+                    };
+
+                    const handleSwitchChange = (e) => {
+                        e.stopPropagation();
+                        const a = state.alarms.find(x => x.id === alarmId);
+                        if (a) {
+                            a.enabled = switchInput.checked;
+                            syncAndPersist();
+                        }
+                    };
+
+                    if (leftPart) {
+                        leftPart.addEventListener('click', handleCardClick);
+                        leftPart.addEventListener('touchstart', (e) => { e.preventDefault(); handleCardClick(e); });
+                    }
+
+                    if (switchInput) {
+                        switchInput.addEventListener('change', handleSwitchChange);
+                        switchInput.addEventListener('click', (e) => e.stopPropagation());
+                    }
+                });
+            }
+
+            function updateBanner() {
+                if (!dom.banner) return;
+                const now = new Date();
+                let min = Infinity;
+                state.alarms.forEach(a => {
+                    if (!a.enabled) return;
+                    const [h, m] = a.time.split(':').map(Number);
+                    let t = new Date(now);
+                    t.setHours(h, m, 0, 0);
+                    if (t <= now) t.setDate(t.getDate() + 1);
+                    const d = t - now;
+                    if (d < min) min = d;
+                });
+                if (min === Infinity) dom.banner.innerHTML = "<span>💤 Нет активных будильников</span>";
+                else {
+                    const h = Math.floor(min/3600000), m = Math.floor((min%3600000)/60000);
+                    dom.banner.innerHTML = `<span>🔔 Следующий через ${h} ч. ${m} мин.</span>`;
+                }
+            }
+
+            function startRinging(alarm) {
+                state.isRinging = true;
+                state.activeAlarm = alarm;
+
+                if (dom.ringLabel) dom.ringLabel.textContent = alarm.label || "Будильник";
+                if (dom.ringOverlay) dom.ringOverlay.classList.remove('hidden');
+
+                startSound(alarm.sound || 'siren');
+                taskState = { step: 0, total: alarm.rounds, difficulty: alarm.difficulty, mode: alarm.mode };
+                nextTask();
+            }
+
+            function startSound(soundType) {
+                try {
+                    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                    sirenGain = audioCtx.createGain();
+                    sirenGain.connect(audioCtx.destination);
+                    sirenGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    sirenGain.gain.exponentialRampToValueAtTime(0.9, audioCtx.currentTime + 3);
+
+                    for(let i=0; i<2; i++) {
+                        const o = audioCtx.createOscillator();
+                        if (soundType === 'bell') {
+                            o.type = 'sine';
+                            o.frequency.value = i === 0 ? 880 : 1320;
+                        } else if (soundType === 'digital') {
+                            o.type = 'square';
+                            o.frequency.value = i === 0 ? 1046 : 1318;
+                        } else {
+                            o.type = i === 0 ? 'sawtooth' : 'square';
+                            o.frequency.value = i === 0 ? 440 : 660;
+                        }
+                        o.connect(sirenGain);
+                        o.start();
+                        sirenOsc.push(o);
+                    }
+
+                    let up = true;
+                    sirenTimer = setInterval(() => {
+                        if (!sirenOsc[0] || !sirenOsc[1]) return;
+                        const f1 = up ? 600 : 400, f2 = up ? 900 : 600;
+                        sirenOsc[0].frequency.exponentialRampToValueAtTime(f1, audioCtx.currentTime + 0.2);
+                        sirenOsc[1].frequency.exponentialRampToValueAtTime(f2, audioCtx.currentTime + 0.2);
+                        up = !up;
+                    }, 300);
+                } catch (e) {
+                    console.error("Audio start error:", e);
+                }
+
+                try {
+                    if ('wakeLock' in navigator) {
+                        navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
+                    }
+                } catch (e) {}
+            }
+
+            async function stopSound() {
+                if (sirenTimer) clearInterval(sirenTimer);
+                sirenOsc.forEach(o => { try{o.stop();}catch(e){} });
+                sirenOsc = [];
+                if (sirenGain) { sirenGain.gain.value = 0; sirenGain = null; }
+                if (wakeLock) { try { await wakeLock.release(); } catch(e){} wakeLock = null; }
+            }
+
+            function nextTask() {
+                taskState.step++;
+                if (taskState.step > taskState.total) {
+                    state.isRinging = false;
+                    stopSound();
+                    if (dom.ringOverlay) dom.ringOverlay.classList.add('hidden');
+                    return;
+                }
+                updateProgress();
+                renderTask();
+            }
+
+            function updateProgress() {
+                if (dom.ringInfo) dom.ringInfo.textContent = `Уровень ${taskState.difficulty} • Раунд ${taskState.step} из ${taskState.total}`;
+                if (dom.ringProgress) dom.ringProgress.style.width = `${((taskState.step-1)/taskState.total) * 100}%`;
+            }
+
+            function renderTask() {
+                if (!dom.taskBody) return;
+                dom.taskBody.innerHTML = "";
+                if (dom.ringFeedback) dom.ringFeedback.textContent = "";
+                const d = taskState.difficulty;
+
+                if (taskState.mode === 'math') {
+                    const p = genMath(d);
+                    taskState.currentAnswer = p.ans;
+                    dom.taskBody.innerHTML = `
+                        <div style="font-size:1.8rem; text-align:center; margin-bottom:20px; font-weight:800; color:white;">${p.txt} = ?</div>
+                        <input type="number" id="ans-in" class="input-code" autofocus inputmode="numeric" placeholder="Ответ">
+                    `;
+                    const input = document.getElementById('ans-in');
+                    if (input) {
+                        const checkMath = () => {
+                            if (parseInt(input.value) === taskState.currentAnswer) {
+                                input.value = "";
+                                nextTask();
+                            }
+                        };
+                        input.addEventListener('input', checkMath);
+                        input.addEventListener('keyup', checkMath);
+                        setTimeout(() => input.focus(), 100);
+                    }
+                } else if (taskState.mode === 'memory') {
+                    const size = d <= 2 ? 3 : (d <= 4 ? 4 : 5);
+                    const count = 2 + d;
+                    const seq = [];
+                    for(let i=0; i<count; i++) seq.push(Math.floor(Math.random() * size * size));
+                    taskState.memorySequence = seq;
+                    taskState.memoryUserIdx = 0;
+                    taskState.memoryPlaying = true;
+
+                    const gridClass = `grid-${size}`;
+                    const tileClass = size === 5 ? "tile-sm" : "";
+                    dom.taskBody.innerHTML = `<div class="memory-grid ${gridClass}" id="mem-grid"></div>`;
+                    const grid = document.getElementById('mem-grid');
+                    for(let i=0; i<size*size; i++) {
+                        const t = document.createElement('div');
+                        t.className = `memory-tile ${tileClass}`;
+                        t.dataset.idx = i;
+                        grid.appendChild(t);
+                    }
+
+                    let i = 0;
+                    const speed = 550 - (d * 50);
+                    const itv = setInterval(() => {
+                        if (i < seq.length) {
+                            const t = grid.children[seq[i]];
+                            if (t) {
+                                t.classList.add('lit');
+                                setTimeout(() => t.classList.remove('lit'), speed/2);
+                            }
+                            i++;
+                        } else {
+                            clearInterval(itv);
+                            taskState.memoryPlaying = false;
+                            if (dom.ringFeedback) dom.ringFeedback.textContent = "Повторите последовательность!";
+                        }
+                    }, speed);
+
+                    const handleTileClick = (e) => {
+                        if (taskState.memoryPlaying) return;
+                        const t = e.target.closest('.memory-tile');
+                        if (!t) return;
+                        const idx = parseInt(t.dataset.idx);
+                        t.classList.add('active');
+                        setTimeout(() => t.classList.remove('active'), 100);
+
+                        if (idx === taskState.memorySequence[taskState.memoryUserIdx]) {
+                            taskState.memoryUserIdx++;
+                            if (taskState.memoryUserIdx === taskState.memorySequence.length) nextTask();
+                        } else {
+                            if (dom.ringFeedback) dom.ringFeedback.textContent = "Ошибка! Сброс раунда...";
+                            taskState.step = Math.max(0, taskState.step - 1);
+                            setTimeout(nextTask, 800);
+                        }
+                    };
+
+                    grid.addEventListener('click', handleTileClick);
+                    grid.addEventListener('touchstart', (e) => { e.preventDefault(); handleTileClick(e); });
+                } else {
+                    const code = genCode(d);
+                    taskState.currentAnswer = code;
+                    dom.taskBody.innerHTML = `
+                        <div style="font-size:1.4rem; text-align:center; margin-bottom:15px; font-family:monospace; letter-spacing:3px; color:var(--accent-cyan); word-break:break-all;">${code}</div>
+                        <input type="text" id="code-in" class="input-code" placeholder="Введите код точно" autofocus autocomplete="off">
+                    `;
+                    const input = document.getElementById('code-in');
+                    if (input) {
+                        const checkCode = () => {
+                            if (input.value.trim() === taskState.currentAnswer) {
+                                input.value = "";
+                                nextTask();
+                            }
+                        };
+                        input.addEventListener('input', checkCode);
+                        input.addEventListener('keyup', checkCode);
+                        setTimeout(() => input.focus(), 100);
+                    }
+                }
+            }
+
+            function genMath(d) {
+                if (d === 1) {
+                    const a = Math.floor(Math.random()*9)+1, b = Math.floor(Math.random()*9)+1;
+                    return { txt: `${a} + ${b}`, ans: a+b };
+                }
+                if (d === 2) {
+                    const a = Math.floor(Math.random()*90)+10, b = Math.floor(Math.random()*90)+10;
+                    return { txt: `${a} + ${b}`, ans: a+b };
+                }
+                if (d === 3) {
+                    const a = Math.floor(Math.random()*12)+2, b = Math.floor(Math.random()*10)+2, c = Math.floor(Math.random()*50)+10;
+                    return { txt: `${a} × ${b} + ${c}`, ans: a*b+c };
+                }
+                if (d === 4) {
+                    const a = Math.floor(Math.random()*20)+10, b = Math.floor(Math.random()*9)+2, c = Math.floor(Math.random()*100)+50;
+                    return { txt: `${a} × ${b} - ${c}`, ans: a*b-c };
+                }
+                const a = Math.floor(Math.random()*15)+10, b = Math.floor(Math.random()*15)+5, c = Math.floor(Math.random()*15)+10, d2 = Math.floor(Math.random()*10)+5;
+                return { txt: `(${a} × ${b}) + (${c} × ${d2})`, ans: (a*b)+(c*d2) };
+            }
+
+            function genCode(d) {
+                const c1 = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+                const c2 = "abcdefghijkmnopqrstuvwxyz";
+                const c3 = "!@#$%^&*";
+                let pool = c1, len = 5;
+                if (d >= 3) { pool += c2; len = 8; }
+                if (d === 5) { pool += c3; len = 12; }
+                let res = "";
+                for(let i=0; i<len; i++) res += pool[Math.floor(Math.random()*pool.length)];
+                return res;
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+</body>
+</html>
