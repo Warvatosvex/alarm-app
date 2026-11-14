@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Умный Будильник</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="./style.css">
+    <meta name="theme-color" content="#0c0f17">
+</head>
+<body>
+    <div id="app">
+        <header class="app-header">
+            <div class="app-title-row">
+                <h1><span>⏰</span> Будильник</h1>
+                <div id="top-clock" class="digital-clock-sm">00:00:00</div>
+            </div>
+            <div id="next-alarm-banner" class="next-alarm-banner">
+                <span>🔔 Нет активных будильников</span>
+            </div>
+        </header>
+
+        <main id="alarm-list" class="alarm-list-container"></main>
+
+        <button id="fab-add" class="fab">+</button>
+
+        <!-- Edit Modal -->
+        <div id="alarm-modal" class="modal-overlay">
+            <div class="modal-header">
+                <button id="modal-close" class="btn-icon">✕</button>
+                <div id="modal-title" class="modal-title">Новый будильник</div>
+                <div style="width:24px;"></div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Время</label>
+                    <input type="time" id="edit-time" class="time-input-native" value="07:30">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Название</label>
+                    <input type="text" id="edit-label" placeholder="Напр: Работа" class="text-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Сложность: <span id="val-diff-label">Средний</span></label>
+                    <div class="range-container">
+                        <input type="range" id="edit-difficulty" min="1" max="5" value="3">
+                        <div class="range-info">
+                            <span>Лёгкий</span>
+                            <span>Хардкор</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Количество раундов: <span id="val-rounds">5</span></label>
+                    <div class="range-container">
+                        <input type="range" id="edit-rounds" min="1" max="10" value="5">
+                        <div class="range-info">
+                            <span>1</span>
+                            <span>10</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Тип задания</label>
+                    <div class="radio-grid">
+                        <label class="radio-card" data-mode="math">
+                            <input type="radio" name="edit-mode" value="math" checked>
+                            <div>
+                                <div style="font-weight:700;">Математика</div>
+                                <div style="font-size:0.8rem; color:var(--text-dim);">Арифметика</div>
+                            </div>
+                        </label>
+                        <label class="radio-card" data-mode="memory">
+                            <input type="radio" name="edit-mode" value="memory">
+                            <div>
+                                <div style="font-weight:700;">Память</div>
+                                <div style="font-size:0.8rem; color:var(--text-dim);">Цветные плитки</div>
+                            </div>
+                        </label>
+                        <label class="radio-card" data-mode="code">
+                            <input type="radio" name="edit-mode" value="code">
+                            <div>
+                                <div style="font-weight:700;">Код</div>
+                                <div style="font-size:0.8rem; color:var(--text-dim);">Сложный пароль</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button id="btn-delete" class="btn-modal btn-delete hidden">Удалить</button>
+                    <button id="btn-save" class="btn-modal btn-save">Сохранить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ringing Overlay -->
+        <div id="ringing-overlay" class="ringing-overlay hidden">
+            <div class="pulse-bg"></div>
+            <div class="ringing-content">
+                <div class="ring-time" id="ring-clock">07:30</div>
+                <div id="ring-label" class="ring-label">Будильник</div>
+
+                <div class="task-container">
+                    <div class="progress-info">
+                        <span id="ring-task-info">Уровень 3 • Задание 1 из 5</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="ring-progress-bar" class="progress-fill" style="width:0%;"></div>
+                    </div>
+                    <div id="ring-feedback" class="feedback-alert hidden"></div>
+                    <div id="task-body"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>
