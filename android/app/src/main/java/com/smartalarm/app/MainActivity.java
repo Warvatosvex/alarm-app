@@ -1,4 +1,4 @@
-﻿package com.smartalarm.app;
+package com.smartalarm.app;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;

@@ -1,4 +1,4 @@
-﻿package com.smartalarm.app;
+package com.smartalarm.app;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
