@@ -28,7 +28,12 @@
             padding: 0;
             font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
             -webkit-tap-highlight-color: transparent;
+        }
+
+        button, input, select, label, .alarm-card, .day-btn, .radio-card, .bottom-nav-btn {
+            touch-action: manipulation;
             pointer-events: auto;
+            cursor: pointer;
         }
 
         body {
@@ -36,10 +41,8 @@
             color: var(--text);
             min-height: 100vh;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column;
             overflow-x: hidden;
-            pointer-events: auto;
         }
 
         #app {
@@ -54,6 +57,7 @@
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
             overflow: hidden;
             pointer-events: auto;
+            padding-top: calc(env(safe-area-inset-top, 24px) + 16px);
         }
 
         @media (min-width: 500px) {
@@ -62,6 +66,46 @@
                 border: 2px solid var(--border);
                 height: 92vh;
             }
+        }
+
+        /* Bottom Navigation Bar - единая панель снизу */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 900;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 20px;
+            background: rgba(12, 15, 23, 0.95);
+            backdrop-filter: blur(16px);
+            border-top: 1px solid var(--border);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .bottom-nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: color 0.2s ease;
+            pointer-events: auto;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .bottom-nav-btn.active {
+            color: var(--primary);
+        }
+
+        .bottom-nav-btn .icon {
+            font-size: 1.5rem;
+            width: 28px;
+            height: 28px;
         }
 
         /* App Bar */
@@ -488,26 +532,18 @@
             </div>
         </header>
 
-        <!-- Tab Navigation -->
-        <nav class="tab-nav">
-            <button class="tab-btn active" data-tab="alarms">📋 Будильники</button>
-            <button class="tab-btn" data-tab="series">🔁 Серия</button>
-            <button class="tab-btn" data-tab="reminders">📌 Напоминания</button>
-            <button class="tab-btn" data-tab="timer">⏳ Таймер</button>
-            <button class="tab-btn" data-tab="stopwatch">⏱️ Секундомер</button>
-        </nav>
-
-        <main id="content-area" class="alarm-list-container"></main>
+        <!-- Top content area with safe-area padding -->
+        <main id="content-area" class="alarm-list-container" style="padding-bottom: 95px;">
 
         <!-- Alarms Tab Content -->
-        <section id="alarms-tab" class="tab-content active">
+        <section id="alarms-tab" class="tab-content">
             <h2 style="margin: 20px 0; font-size: 1.2rem; color: var(--text);">Мои будильники</h2>
             <div id="alarms-list" class="alarm-list-container"></div>
             <button id="btn-add-alarm" style="width: 100%; margin: 10px 0; padding: 12px; background: var(--primary); color: var(--on-primary); border: none; border-radius: 12px; font-weight: 700; font-size: 1rem;">+ Добавить будильник</button>
         </section>
 
         <!-- Series Tab Content -->
-        <section id="series-tab" class="tab-content">
+        <section id="series-tab" class="tab-content hidden">
             <div style="padding: 20px;">
                 <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Генератор серии будильников</h2>
 
@@ -577,7 +613,7 @@
         </section>
 
         <!-- Reminders Tab Content -->
-        <section id="reminders-tab" class="tab-content">
+        <section id="reminders-tab" class="tab-content hidden">
             <div style="padding: 20px;">
                 <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Напоминания</h2>
                 <div id="reminders-list" style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; min-height: 200px; overflow-y: auto;">
@@ -588,7 +624,7 @@
         </section>
 
         <!-- Timer Tab Content -->
-        <section id="timer-tab" class="tab-content">
+        <section id="timer-tab" class="tab-content hidden">
             <div style="padding: 20px;">
                 <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Таймер</h2>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -621,7 +657,7 @@
         </section>
 
         <!-- Stopwatch Tab Content -->
-        <section id="stopwatch-tab" class="tab-content">
+        <section id="stopwatch-tab" class="tab-content hidden">
             <div style="padding: 20px;">
                 <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Секундомер</h2>
                 <div style="background: var(--surface); border: 2px solid var(--primary); border-radius: 30px; padding: 30px; text-align: center;">
@@ -765,6 +801,7 @@
                 activeAlarm: null,
                 selectedDays: [1, 2, 3, 4, 5], // Пн-Пт по умолчанию
                 currentTab: 'alarms', // alarms, series, reminders, timer, stopwatch
+                bottomNavShown: true,
                 seriesConfig: {
                     startTime: '06:00',
                     endTime: '07:25',
@@ -883,39 +920,81 @@
             }
 
             function setupTabNavigation() {
-                const tabBtns = document.querySelectorAll('.tab-btn');
+                // Initialize bottom navigation buttons if not already created
+                let bottomNav = document.querySelector('.bottom-nav');
+                if (!bottomNav) {
+                    bottomNav = document.createElement('div');
+                    bottomNav.className = 'bottom-nav';
+                    bottomNav.innerHTML = `
+                        <button class="bottom-nav-btn ${state.currentTab === 'alarms' ? 'active' : ''}" data-tab="alarms">
+                            <span class="icon">⏰</span>
+                            <span>Будильники</span>
+                        </button>
+                        <button class="bottom-nav-btn ${state.currentTab === 'series' ? 'active' : ''}" data-tab="series">
+                            <span class="icon">🔁</span>
+                            <span>Серия</span>
+                        </button>
+                        <button class="bottom-nav-btn ${state.currentTab === 'timer' ? 'active' : ''}" data-tab="timer">
+                            <span class="icon">⏳</span>
+                            <span>Таймер</span>
+                        </button>
+                        <button class="bottom-nav-btn ${state.currentTab === 'stopwatch' ? 'active' : ''}" data-tab="stopwatch">
+                            <span class="icon">⏱️</span>
+                            <span>Секундомер</span>
+                        </button>
+                    `;
+                    document.body.appendChild(bottomNav);
+                }
 
-                tabBtns.forEach(btn => {
+                // Update bottom nav button states
+                const bottomNavBtns = bottomNav.querySelectorAll('.bottom-nav-btn');
+                bottomNavBtns.forEach(btn => {
+                    const tab = btn.dataset.tab;
+                    btn.classList.toggle('active', state.currentTab === tab);
+                });
+
+                // Handle bottom nav button clicks
+                bottomNavBtns.forEach(btn => {
                     btn.addEventListener('click', () => {
                         const tab = btn.dataset.tab;
-
-                        // Update button states
-                        tabBtns.forEach(b => b.classList.remove('active'));
-                        btn.classList.add('active');
-
-                        // Show/hide tab content
-                        document.querySelectorAll('.tab-content').forEach(section => {
-                            section.classList.remove('active');
-                        });
-                        document.getElementById(tab + '-tab').classList.add('active');
-
-                        state.currentTab = tab;
-
-                        // Refresh relevant content based on tab
-                        if (tab === 'alarms') {
-                            renderList();
-                            updateBanner();
-                        } else if (tab === 'series') {
-                            // Series tab already rendered
-                        } else if (tab === 'reminders') {
-                            renderRemindersList();
-                        } else if (tab === 'timer') {
-                            updateTimerDisplay();
-                        } else if (tab === 'stopwatch') {
-                            updateStopwatchDisplay();
-                        }
+                        changeTab(tab);
                     });
                 });
+            }
+
+            function changeTab(tab) {
+                state.currentTab = tab;
+
+                // Update bottom nav buttons
+                const bottomNavBtns = document.querySelectorAll('.bottom-nav-btn');
+                bottomNavBtns.forEach(btn => {
+                    btn.classList.toggle('active', state.currentTab === btn.dataset.tab);
+                });
+
+                // Hide all tab contents
+                document.querySelectorAll('.tab-content').forEach(section => {
+                    section.classList.add('hidden');
+                });
+
+                // Show the selected tab content
+                const activeSection = document.getElementById(tab + '-tab');
+                if (activeSection) {
+                    activeSection.classList.remove('hidden');
+                }
+
+                // Refresh relevant content based on tab
+                if (tab === 'alarms') {
+                    renderList();
+                    updateBanner();
+                } else if (tab === 'series') {
+                    // Series tab already rendered
+                } else if (tab === 'reminders') {
+                    renderRemindersList();
+                } else if (tab === 'timer') {
+                    updateTimerDisplay();
+                } else if (tab === 'stopwatch') {
+                    updateStopwatchDisplay();
+                }
             }
 
             function tick() {
