@@ -477,7 +477,7 @@
     <div id="app">
         <header class="app-header">
             <div class="app-title-row">
-                <h1><span>⏰</span> Будильник</h1>
+                <h1><span>⏰</span> Smart Alarm</h1>
                 <div class="header-actions">
                     <button id="btn-test-alarm" class="btn-test">⚡ Тест</button>
                     <div id="top-clock" class="digital-clock-sm">00:00:00</div>
@@ -488,7 +488,153 @@
             </div>
         </header>
 
-        <main id="alarm-list" class="alarm-list-container"></main>
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="alarms">📋 Будильники</button>
+            <button class="tab-btn" data-tab="series">🔁 Серия</button>
+            <button class="tab-btn" data-tab="reminders">📌 Напоминания</button>
+            <button class="tab-btn" data-tab="timer">⏳ Таймер</button>
+            <button class="tab-btn" data-tab="stopwatch">⏱️ Секундомер</button>
+        </nav>
+
+        <main id="content-area" class="alarm-list-container"></main>
+
+        <!-- Alarms Tab Content -->
+        <section id="alarms-tab" class="tab-content active">
+            <h2 style="margin: 20px 0; font-size: 1.2rem; color: var(--text);">Мои будильники</h2>
+            <div id="alarms-list" class="alarm-list-container"></div>
+            <button id="btn-add-alarm" style="width: 100%; margin: 10px 0; padding: 12px; background: var(--primary); color: var(--on-primary); border: none; border-radius: 12px; font-weight: 700; font-size: 1rem;">+ Добавить будильник</button>
+        </section>
+
+        <!-- Series Tab Content -->
+        <section id="series-tab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Генератор серии будильников</h2>
+
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+                    <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 15px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.85rem; color: var(--text-dim);">С:</label>
+                            <input type="time" id="series-start" style="width: 100%; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="flex: 0 0 80px;">
+                            <label style="font-size: 0.85rem; color: var(--text-dim);">До:</label>
+                            <input type="time" id="series-end" style="width: 100%; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.85rem; color: var(--text-dim);">Шаг (мин):</label>
+                            <input type="number" id="series-step" value="5" min="1" max="30" style="width: 100%; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <div style="flex: 0 0 100px;">
+                            <button id="btn-generate-series" style="width: 100%; padding: 10px; background: var(--primary); color: var(--on-primary); border: none; border-radius: 10px; font-weight: 700;">Создать серию</button>
+                        </div>
+                    </div>
+                    <div id="series-preview" style="margin-top: 15px; padding: 10px; background: var(--surface-card); border-radius: 10px; display: none; min-height: 30px; align-items: center; gap: 8px; color: var(--primary);">
+                        <span id="series-count"></span>
+                        <span id="series-times"></span>
+                    </div>
+                </div>
+
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px;">
+                    <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px;">
+                        <div>
+                            <label style="font-size: 0.85rem; color: var(--text-dim);">Дни недели:</label>
+                            <div class="days-grid" id="series-days-selector">
+                                <div class="day-btn" data-day="0">Вс</div>
+                                <div class="day-btn" data-day="1">Пн</div>
+                                <div class="day-btn" data-day="2">Вт</div>
+                                <div class="day-btn" data-day="3">Ср</div>
+                                <div class="day-btn" data-day="4">Чт</div>
+                                <div class="day-btn" data-day="5">Пт</div>
+                                <div class="day-btn" data-day="6">Сб</div>
+                            </div>
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.85rem; color: var(--text-dim);">Раунд:</label>
+                            <input type="range" id="series-rounds" min="1" max="10" value="1" style="width: 100%; padding: 6px;">
+                            <span style="margin-left: 10px; color: var(--text-dim);">1</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label style="font-size: 0.8rem; color: var(--text-dim);">Тип:</label>
+                        <div class="radio-grid" id="series-mode-selector">
+                            <label class="radio-card" data-mode="math"><input type="radio" name="series-mode" value="math" checked><div>Математика</div></label>
+                            <label class="radio-card" data-mode="memory"><input type="radio" name="series-mode" value="memory"><div>Память</div></label>
+                            <label class="radio-card" data-mode="code"><input type="radio" name="series-mode" value="code"><div>Код</div></label>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label style="font-size: 0.8rem; color: var(--text-dim);">Сложность:</label>
+                        <input type="range" id="series-difficulty" min="1" max="5" value="3" style="width: 100%; padding: 6px;">
+                        <span style="margin-left: 10px; color: var(--text-dim);">1</span>
+                    </div>
+                </div>
+
+                <button id="btn-enable-series" style="width: 100%; padding: 12px; background: #22c55e; color: white; border: none; border-radius: 12px; font-weight: 700; display: none;">Включить серию будильников</button>
+            </div>
+        </section>
+
+        <!-- Reminders Tab Content -->
+        <section id="reminders-tab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Напоминания</h2>
+                <div id="reminders-list" style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; min-height: 200px; overflow-y: auto;">
+                    <div style="text-align: center; color: var(--text-dim); padding: 40px;">Нажмите + для создания напоминания</div>
+                </div>
+                <button id="btn-add-reminder" style="width: 100%; padding: 12px; background: var(--primary); color: var(--on-primary); border: none; border-radius: 12px; font-weight: 700; margin-top: 10px;">+ Добавить напоминание</button>
+            </div>
+        </section>
+
+        <!-- Timer Tab Content -->
+        <section id="timer-tab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Таймер</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <label style="font-size: 1rem; color: var(--text-dim);">Часы</label>
+                        <input type="number" id="timer-hours" min="0" max="23" value="0" style="width: 60%; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: white; text-align: center;">
+                    </div>
+                    <div>
+                        <label style="font-size: 1rem; color: var(--text-dim);">Минуты</label>
+                        <input type="number" id="timer-minutes" min="0" max="59" value="30" style="width: 60%; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: white; text-align: center;">
+                    </div>
+                    <div>
+                        <label style="font-size: 1rem; color: var(--text-dim);">Секунды</label>
+                        <input type="number" id="timer-seconds" min="0" max="59" value="0" style="width: 60%; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: white; text-align: center;">
+                    </div>
+                </div>
+                <div style="background: var(--surface); border: 2px solid var(--primary); border-radius: 30px; padding: 40px; text-align: center;">
+                    <div id="timer-display" style="font-size: 4rem; font-weight: 900; color: var(--primary);">02:30:00</div>
+                    <div style="margin-top: 10px; color: var(--text-dim);">00:30:00</div>
+                </div>
+                <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                    <button id="btn-start-timer" style="flex: 1; padding: 15px; background: var(--primary); color: var(--on-primary); border: none; border-radius: 16px; font-weight: 700;">Старт</button>
+                    <button id="btn-pause-timer" style="flex: 1; padding: 15px; background: var(--surface); color: var(--text); border: 2px solid var(--border); border-radius: 16px; font-weight: 700; display: none;">Пауза</button>
+                    <button id="btn-reset-timer" style="flex: 1; padding: 15px; background: var(--danger); color: white; border: none; border-radius: 16px; font-weight: 700;">Сброс</button>
+                </div>
+                <label style="margin-top: 20px; display: block; color: var(--text);">
+                    <input type="checkbox" id="timer-task-require" style="margin-right: 8px; transform: scale(1.2);"> <span style="color: var(--text-dim);">Требовать задание при срабатывании</span>
+                </label>
+            </div>
+        </section>
+
+        <!-- Stopwatch Tab Content -->
+        <section id="stopwatch-tab" class="tab-content">
+            <div style="padding: 20px;">
+                <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text);">Секундомер</h2>
+                <div style="background: var(--surface); border: 2px solid var(--primary); border-radius: 30px; padding: 30px; text-align: center;">
+                    <div id="stopwatch-display" style="font-size: 5rem; font-weight: 900; color: var(--primary);">00:00:00.00</div>
+                </div>
+                <div style="display: flex; gap: 20px; justify-content: center; margin-top: 30px; flex-wrap: wrap;">
+                    <button id="btn-start-stopwatch" style="padding: 15px 30px; background: var(--primary); color: var(--on-primary); border: none; border-radius: 20px; font-weight: 700;">Старт</button>
+                    <button id="btn-lap-stopwatch" style="padding: 15px 30px; background: var(--surface); color: var(--text); border: 2px solid var(--border); border-radius: 20px; font-weight: 700; display: none;">Круг</button>
+                    <button id="btn-reset-stopwatch" style="padding: 15px 30px; background: var(--danger); color: white; border: none; border-radius: 20px; font-weight: 700;">Сброс</button>
+                </div>
+                <div id="laps-list" style="margin-top: 20px; max-height: 200px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: none;"></div>
+            </div>
+        </section>
 
         <button id="fab-add" class="fab">+</button>
 
@@ -617,12 +763,61 @@
                 editingId: null,
                 isRinging: false,
                 activeAlarm: null,
-                selectedDays: [1, 2, 3, 4, 5] // Пн-Пт по умолчанию
+                selectedDays: [1, 2, 3, 4, 5], // Пн-Пт по умолчанию
+                currentTab: 'alarms', // alarms, series, reminders, timer, stopwatch
+                seriesConfig: {
+                    startTime: '06:00',
+                    endTime: '07:25',
+                    step: 5,
+                    days: [1, 2, 3, 4, 5],
+                    mode: 'math',
+                    difficulty: 3,
+                    rounds: 1,
+                    enabled: false
+                },
+                reminders: [],
+                timerState: {
+                    hours: 0,
+                    minutes: 30,
+                    seconds: 0,
+                    running: false,
+                    intervalId: null
+                },
+                stopwatchState: {
+                    minutes: 0,
+                    seconds: 0,
+                    centiseconds: 0,
+                    running: false,
+                    intervalId: null,
+                    laps: []
+                }
             };
 
             try {
                 const saved = localStorage.getItem('alarms_v5');
                 if (saved) state.alarms = JSON.parse(saved);
+                const savedReminders = localStorage.getItem('reminders_v1');
+                if (savedReminders) state.reminders = JSON.parse(savedReminders);
+
+                // Try to load IndexedDB for music storage
+                try {
+                    const request = indexedDB.open('SmartAlarmMusic', 1);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('music')) {
+                            db.createObjectStore('music');
+                        }
+                    };
+                    request.onsuccess = (e) => {
+                        const db = e.target.result;
+                        const tx = db.transaction('music', 'readonly');
+                        const store = tx.objectStore('music');
+                        const getAll = store.getAllKeys();
+                        // IndexedDB is used for large audio files, stored separately
+                    };
+                } catch (e) {
+                    console.log("IndexedDB not available or disabled");
+                }
             } catch (e) {
                 console.error("LocalStorage load error:", e);
             }
@@ -668,6 +863,10 @@
                 dom.ringProgress = document.getElementById('ring-progress-bar');
                 dom.ringFeedback = document.getElementById('ring-feedback');
                 dom.taskBody = document.getElementById('task-body');
+
+                // New DOM elements
+                dom.tabNav = document.querySelector('.tab-nav');
+                dom.contentArea = document.getElementById('content-area');
             }
 
             const diffNames = ["", "Лёгкий", "Обычный", "Средний", "Сложный", "Хардкор"];
@@ -677,7 +876,46 @@
                 renderList();
                 updateBanner();
                 bindEvents();
+                setupTabNavigation();
+                updateTimerDisplay();
+                updateStopwatchDisplay();
                 setInterval(tick, 1000);
+            }
+
+            function setupTabNavigation() {
+                const tabBtns = document.querySelectorAll('.tab-btn');
+
+                tabBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tab = btn.dataset.tab;
+
+                        // Update button states
+                        tabBtns.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+
+                        // Show/hide tab content
+                        document.querySelectorAll('.tab-content').forEach(section => {
+                            section.classList.remove('active');
+                        });
+                        document.getElementById(tab + '-tab').classList.add('active');
+
+                        state.currentTab = tab;
+
+                        // Refresh relevant content based on tab
+                        if (tab === 'alarms') {
+                            renderList();
+                            updateBanner();
+                        } else if (tab === 'series') {
+                            // Series tab already rendered
+                        } else if (tab === 'reminders') {
+                            renderRemindersList();
+                        } else if (tab === 'timer') {
+                            updateTimerDisplay();
+                        } else if (tab === 'stopwatch') {
+                            updateStopwatchDisplay();
+                        }
+                    });
+                });
             }
 
             function tick() {
@@ -692,9 +930,52 @@
                 if (now.getSeconds() === 0 && !state.isRinging) {
                     const current = timeStr.substring(0, 5);
                     const currentDay = now.getDay();
+
+                    // Check regular alarms
                     state.alarms.forEach(a => {
                         if (a.enabled && a.time === current && (!a.days || a.days.length === 0 || a.days.includes(currentDay))) {
                             startRinging(a);
+                        }
+                    });
+
+                    // Check series alarms
+                    if (state.seriesConfig.enabled) {
+                        const startParts = state.seriesConfig.startTime.split(':').map(Number);
+                        const endParts = state.seriesConfig.endTime.split(':').map(Number);
+                        const startMinutes = startParts[0] * 60 + startParts[1];
+                        const endMinutes = endParts[0] * 60 + endParts[1];
+                        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                        if (currentMinutes >= startMinutes && currentMinutes <= endMinutes) {
+                            const diff = currentMinutes - startMinutes;
+                            if (diff % state.seriesConfig.step === 0) {
+                                const t = (currentMinutes - startMinutes) / state.seriesConfig.step;
+                                const alarmTime = `${String(Math.floor(startMinutes / 60)).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+                                startRinging({
+                                    id: 'series_' + t,
+                                    time: alarmTime,
+                                    label: 'Серия',
+                                    difficulty: state.seriesConfig.difficulty,
+                                    rounds: state.seriesConfig.rounds,
+                                    mode: state.seriesConfig.mode,
+                                    sound: 'siren',
+                                    enabled: true,
+                                    days: state.seriesConfig.days
+                                });
+                            }
+                        }
+                    }
+
+                    // Check reminders
+                    state.reminders.forEach(r => {
+                        if (!r.enabled) return;
+                        if (r.datetime) {
+                            const rDate = new Date(r.datetime);
+                            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                            const rMinutes = rDate.getHours() * 60 + rDate.getMinutes();
+                            if (currentMinutes >= rMinutes && Math.abs(currentMinutes - rMinutes) < 60) {
+                                startRinging({ id: 'reminder_' + r.id, time: r.time || '00:00', label: r.label || 'Напоминание', difficulty: r.difficulty || 0, rounds: 1, mode: 'math', sound: r.sound || 'siren', enabled: true });
+                            }
                         }
                     });
                 }
@@ -776,6 +1057,137 @@
                     c.addEventListener('click', handleRadio);
                     c.addEventListener('touchstart', handleRadio);
                 });
+
+                // Tab navigation
+                setupTabNavigation();
+
+                // FAB + alarm add
+                const fabAddAlarm = () => openModal();
+                if (dom.fab) {
+                    dom.fab.addEventListener('click', fabAddAlarm);
+                    dom.fab.addEventListener('touchstart', (e) => { e.preventDefault(); fabAddAlarm(); });
+                }
+
+                // Add alarm button in alarms tab
+                const btnAddAlarm = document.getElementById('btn-add-alarm');
+                if (btnAddAlarm) {
+                    btnAddAlarm.addEventListener('click', () => openModal());
+                }
+
+                // Series generation
+                const btnGenerateSeries = document.getElementById('btn-generate-series');
+                if (btnGenerateSeries) {
+                    btnGenerateSeries.addEventListener('click', generateSeries);
+                }
+
+                // Enable series button
+                const btnEnableSeries = document.getElementById('btn-enable-series');
+                if (btnEnableSeries) {
+                    btnEnableSeries.addEventListener('click', enableSeries);
+                }
+
+                // Series config inputs
+                const seriesStart = document.getElementById('series-start');
+                const seriesEnd = document.getElementById('series-end');
+                const seriesStep = document.getElementById('series-step');
+                const seriesDifficulty = document.getElementById('series-difficulty');
+                const seriesRounds = document.getElementById('series-rounds');
+                const seriesDaysSelector = document.getElementById('series-days-selector');
+                const seriesModeSelector = document.getElementById('series-mode-selector');
+
+                if (seriesStart) {
+                    seriesStart.addEventListener('change', updateSeriesConfig);
+                }
+                if (seriesEnd) {
+                    seriesEnd.addEventListener('change', updateSeriesConfig);
+                }
+                if (seriesStep) {
+                    seriesStep.addEventListener('input', updateSeriesConfig);
+                }
+                if (seriesDifficulty) {
+                    seriesDifficulty.addEventListener('input', () => {
+                        if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[seriesDifficulty.value];
+                    });
+                }
+                if (seriesRounds) {
+                    seriesRounds.addEventListener('input', () => {
+                        if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = seriesRounds.value;
+                    });
+                }
+                if (seriesDaysSelector) {
+                    seriesDaysSelector.querySelectorAll('.day-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const day = parseInt(btn.dataset.day);
+                            if (state.seriesConfig.days.includes(day)) {
+                                state.seriesConfig.days = state.seriesConfig.days.filter(d => d !== day);
+                            } else {
+                                state.seriesConfig.days.push(day);
+                            }
+                            btn.classList.toggle('selected', state.seriesConfig.days.includes(day));
+                        });
+                        btn.addEventListener('touchstart', (e) => { e.preventDefault(); toggleDaySeries(btn); });
+                    });
+                }
+                if (seriesModeSelector) {
+                    seriesModeSelector.querySelectorAll('.radio-card').forEach(c => {
+                        c.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const radio = c.querySelector('input');
+                            if (radio) {
+                                radio.checked = true;
+                                updateRadioUI();
+                            }
+                        });
+                    });
+                }
+
+                // Timer buttons
+                const btnStartTimer = document.getElementById('btn-start-timer');
+                const btnPauseTimer = document.getElementById('btn-pause-timer');
+                const btnResetTimer = document.getElementById('btn-reset-timer');
+                if (btnStartTimer) btnStartTimer.addEventListener('click', startTimer);
+                if (btnPauseTimer) btnPauseTimer.addEventListener('click', pauseTimer);
+                if (btnResetTimer) btnResetTimer.addEventListener('click', resetTimer);
+
+                // Timer task require
+                const timerTaskBox = document.querySelector('label[for="timer-task-require"]');
+                if (timerTaskBox) {
+                    timerTaskBox.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                    });
+                }
+
+                // Stopwatch buttons
+                const btnStartStopwatch = document.getElementById('btn-start-stopwatch');
+                const btnLapStopwatch = document.getElementById('btn-lap-stopwatch');
+                const btnResetStopwatch = document.getElementById('btn-reset-stopwatch');
+                if (btnStartStopwatch) btnStartStopwatch.addEventListener('click', startStopwatch);
+                if (btnLapStopwatch) btnLapStopwatch.addEventListener('click', lapStopwatch);
+                if (btnResetStopwatch) btnResetStopwatch.addEventListener('click', resetStopwatch);
+
+                // Reminder add button
+                const btnAddReminder = document.getElementById('btn-add-reminder');
+                if (btnAddReminder) {
+                    btnAddReminder.addEventListener('click', openReminderModal);
+                }
+
+                // Window focus handling
+                window.addEventListener('focus', () => {
+                    try {
+                        startLockTask();
+                    } catch (e) {}
+                });
+            }
+
+            function toggleDaySeries(btn) {
+                const day = parseInt(btn.dataset.day);
+                if (state.seriesConfig.days.includes(day)) {
+                    state.seriesConfig.days = state.seriesConfig.days.filter(d => d !== day);
+                } else {
+                    state.seriesConfig.days.push(day);
+                }
+                btn.classList.toggle('selected', state.seriesConfig.days.includes(day));
             }
 
             function updateRadioUI() {
@@ -815,7 +1227,52 @@
                 if (dom.modal) dom.modal.classList.remove('active');
             }
 
+            function openReminderModal() {
+                state.editingId = null;
+                if (dom.mTime) dom.mTime.value = "";
+                if (dom.mLabel) dom.mLabel.value = "";
+                if (dom.mSound) dom.mSound.value = "siren";
+                if (dom.mDiff) dom.mDiff.value = 0;
+                if (dom.mRounds) dom.mRounds.value = 5;
+                if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[0];
+                if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = "5";
+
+                state.selectedDays = [];
+                document.querySelectorAll('.day-btn').forEach(btn => {
+                    const day = parseInt(btn.dataset.day);
+                    btn.classList.toggle('selected', state.selectedDays.includes(day));
+                });
+
+                if (dom.btnDelete) dom.btnDelete.classList.add('hidden');
+                if (dom.modal) dom.modal.classList.add('active');
+            }
+
             function save() {
+                const mode = (document.querySelector('input[name="edit-mode"]:checked') || {}).value || 'math';
+
+                if (state.currentTab === 'reminders') {
+                    // Save reminder
+                    const newReminder = {
+                        id: state.editingId || Date.now().toString(),
+                        label: dom.mLabel && dom.mLabel.value ? dom.mLabel.value : 'Напоминание',
+                        datetime: dom.mTime ? dom.mTime.value : null,
+                        sound: dom.mSound ? dom.mSound.value : 'siren',
+                        difficulty: dom.mDiff ? parseInt(dom.mDiff.value) : 0,
+                        enabled: true
+                    };
+
+                    if (state.editingId) {
+                        const i = state.reminders.findIndex(x => x.id === state.editingId);
+                        if (i !== -1) state.reminders[i] = newReminder;
+                    } else {
+                        state.reminders.push(newReminder);
+                    }
+                    localStorage.setItem('reminders_v1', JSON.stringify(state.reminders));
+                    renderRemindersList();
+                    closeModal();
+                    return;
+                }
+
                 const newAlarm = {
                     id: state.editingId || Date.now().toString(),
                     time: dom.mTime ? dom.mTime.value : "07:30",
@@ -824,7 +1281,7 @@
                     difficulty: dom.mDiff ? parseInt(dom.mDiff.value) : 3,
                     rounds: dom.mRounds ? parseInt(dom.mRounds.value) : 5,
                     days: [...state.selectedDays],
-                    mode: (document.querySelector('input[name="edit-mode"]:checked') || {}).value || 'math',
+                    mode: mode,
                     enabled: true
                 };
 
@@ -910,6 +1367,9 @@
                         switchInput.addEventListener('click', (e) => e.stopPropagation());
                     }
                 });
+
+                // Update banner after rendering
+                updateBanner();
             }
 
             function updateBanner() {
@@ -930,6 +1390,228 @@
                     const h = Math.floor(min/3600000), m = Math.floor((min%3600000)/60000);
                     dom.banner.innerHTML = `<span>🔔 Следующий через ${h} ч. ${m} мин.</span>`;
                 }
+            }
+
+            function formatTime(ms) {
+                const totalSeconds = Math.floor(ms / 1000);
+                const hrs = Math.floor(totalSeconds / 3600);
+                const mins = Math.floor((totalSeconds % 3600) / 60);
+                const secs = totalSeconds % 60;
+                const cs = Math.floor((ms % 1000) / 10);
+                return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
+            }
+
+            function renderTimer() {
+                if (state.timerState.running) {
+                    const startTime = Date.now() - (state.timerState.hours * 3600000 + state.timerState.minutes * 60000 + state.timerState.seconds * 1000);
+                    const elapsed = Date.now() - startTime;
+                    const remaining = (state.timerState.hours * 3600000 + state.timerState.minutes * 60000 + state.timerState.seconds * 1000) - elapsed;
+                    if (remaining <= 0) {
+                        clearInterval(state.timerState.intervalId);
+                        state.timerState.running = false;
+                        document.getElementById('btn-start-timer').style.display = 'inline-block';
+                        document.getElementById('btn-pause-timer').style.display = 'none';
+                        // Alarm!
+                        startRinging({ id: 'timer', time: '00:00', label: 'Таймер', difficulty: 3, rounds: 1, mode: 'math', sound: 'siren', enabled: true });
+                        return;
+                    }
+                    document.getElementById('timer-display').textContent = formatTime(remaining);
+                }
+            }
+
+            function renderStopwatch() {
+                if (state.stopwatchState.running) {
+                    const elapsed = Date.now() - (state.stopwatchState.intervalStart || Date.now());
+                    const totalMs = elapsed + (state.stopwatchState.laps.reduce((sum, lap) => sum + lap.ms, 0) || 0);
+                    document.getElementById('stopwatch-display').textContent = formatTime(totalMs);
+                }
+            }
+
+            function startTimer() {
+                state.timerState = {
+                    hours: parseInt(document.getElementById('timer-hours').value) || 0,
+                    minutes: parseInt(document.getElementById('timer-minutes').value) || 0,
+                    seconds: parseInt(document.getElementById('timer-seconds').value) || 0,
+                    running: true,
+                    intervalId: setInterval(renderTimer, 10)
+                };
+                document.getElementById('btn-start-timer').style.display = 'none';
+                document.getElementById('btn-pause-timer').style.display = 'inline-block';
+            }
+
+            function pauseTimer() {
+                clearInterval(state.timerState.intervalId);
+                state.timerState.running = false;
+                document.getElementById('btn-start-timer').style.display = 'inline-block';
+                document.getElementById('btn-pause-timer').style.display = 'none';
+            }
+
+            function resetTimer() {
+                clearInterval(state.timerState.intervalId);
+                state.timerState = {
+                    hours: 0,
+                    minutes: 30,
+                    seconds: 0,
+                    running: false
+                };
+                document.getElementById('timer-display').textContent = '00:30:00';
+                document.getElementById('btn-start-timer').style.display = 'inline-block';
+                document.getElementById('btn-pause-timer').style.display = 'none';
+            }
+
+            function startStopwatch() {
+                state.stopwatchState = {
+                    minutes: 0,
+                    seconds: 0,
+                    centiseconds: 0,
+                    running: true,
+                    intervalStart: Date.now()
+                };
+                document.getElementById('btn-start-stopwatch').style.display = 'none';
+                document.getElementById('btn-lap-stopwatch').style.display = 'inline-block';
+                renderStopwatch();
+            }
+
+            function lapStopwatch() {
+                const now = Date.now();
+                const elapsed = now - (state.stopwatchState.intervalStart || now);
+                state.stopwatchState.laps.push({ ms: elapsed, time: formatTime(elapsed) });
+                renderLapsList();
+            }
+
+            function resetStopwatch() {
+                clearInterval && clearTimeout();
+                state.stopwatchState = {
+                    minutes: 0,
+                    seconds: 0,
+                    centiseconds: 0,
+                    running: false,
+                    intervalStart: null,
+                    laps: []
+                };
+                document.getElementById('stopwatch-display').textContent = '00:00:00.00';
+                document.getElementById('btn-start-stopwatch').style.display = 'inline-block';
+                document.getElementById('btn-lap-stopwatch').style.display = 'none';
+                document.getElementById('laps-list').innerHTML = '';
+                document.getElementById('laps-list').style.display = 'none';
+            }
+
+            function renderLapsList() {
+                const lapsList = document.getElementById('laps-list');
+                if (state.stopwatchState.laps.length === 0) {
+                    lapsList.innerHTML = '<div style="color: var(--text-dim);">Нет кругов</div>';
+                    return;
+                }
+                lapsList.innerHTML = state.stopwatchState.laps.map((lap, i) => `
+                    <div style="padding: 8px; border-bottom: 1px solid var(--border); color: var(--text);">
+                        <span>Круг ${i + 1}</span>
+                        <span style="margin-left: auto; color: var(--text-dim);">${lap.time}</span>
+                    </div>
+                `).join('');
+                document.getElementById('laps-list').style.display = 'block';
+            }
+
+            function updateSeriesConfig() {
+                state.seriesConfig.startTime = document.getElementById('series-start')?.value || '06:00';
+                state.seriesConfig.endTime = document.getElementById('series-end')?.value || '07:25';
+                state.seriesConfig.step = parseInt(document.getElementById('series-step')?.value) || 5;
+                state.seriesConfig.difficulty = parseInt(document.getElementById('series-difficulty')?.value) || 3;
+                state.seriesConfig.rounds = parseInt(document.getElementById('series-rounds')?.value) || 1;
+                updateSeriesPreview();
+            }
+
+            function updateSeriesPreview() {
+                const start = document.getElementById('series-start')?.value || '06:00';
+                const end = document.getElementById('series-end')?.value || '07:25';
+                const step = parseInt(document.getElementById('series-step')?.value) || 5;
+                const countEl = document.getElementById('series-count');
+                const timesEl = document.getElementById('series-times');
+
+                const startMs = parseInt(start.split(':')[0]) * 60000 + parseInt(start.split(':')[1]) * 60000;
+                const endMs = parseInt(end.split(':')[0]) * 60000 + parseInt(end.split(':')[1]) * 60000;
+                const totalMinutes = (endMs - startMs) / 60000;
+
+                const count = Math.floor(totalMinutes / step) + 1;
+                const times = [];
+                for (let i = 0; i < count; i++) {
+                    const m = Math.floor(startMs / 60000) + i * step;
+                    const h = Math.floor(m / 60);
+                    const mins = m % 60;
+                    times.push(`${h.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+                }
+
+                if (countEl) countEl.textContent = count;
+                if (timesEl) timesEl.innerHTML = times.map(t => t).join(', ');
+                if (countEl && timesEl) {
+                    const preview = document.getElementById('series-preview');
+                    if (preview) {
+                        preview.style.display = 'flex';
+                    }
+                }
+            }
+
+            function generateSeries() {
+                const startTime = document.getElementById('series-start')?.value || '06:00';
+                const endTime = document.getElementById('series-end')?.value || '07:25';
+                const step = parseInt(document.getElementById('series-step')?.value) || 5;
+                const difficulty = parseInt(document.getElementById('series-difficulty')?.value) || 3;
+                const rounds = parseInt(document.getElementById('series-rounds')?.value) || 1;
+                const mode = document.querySelector('input[name="series-mode"]:checked')?.value || 'math';
+                const days = state.seriesConfig.days || [1, 2, 3, 4, 5];
+
+                const startParts = startTime.split(':').map(Number);
+                const endParts = endTime.split(':').map(Number);
+                const startMinutes = startParts[0] * 60 + startParts[1];
+                const endMinutes = endParts[0] * 60 + endParts[1];
+
+                const alarms = [];
+                for (let t = startMinutes; t <= endMinutes; t += step) {
+                    const h = Math.floor(t / 60);
+                    const m = t % 60;
+                    alarms.push({
+                        id: Date.now() + '_' + t,
+                        time: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`,
+                        label: 'Серия',
+                        sound: 'siren',
+                        difficulty: difficulty,
+                        rounds: rounds,
+                        mode: mode,
+                        days: days,
+                        enabled: true
+                    });
+                }
+
+                state.alarms = [...state.alarms, ...alarms];
+                syncAndPersist();
+                closeModal();
+                renderList();
+                updateBanner();
+            }
+
+            function enableSeries() {
+                state.seriesConfig.enabled = !state.seriesConfig.enabled;
+                const btn = document.getElementById('btn-enable-series');
+                if (btn) {
+                    btn.textContent = state.seriesConfig.enabled ? 'Выключить серию будильников' : 'Включить серию будильников';
+                }
+                updateSeriesPreview();
+            }
+                if (!dom.alarmList) return;
+                dom.alarmList.innerHTML = state.reminders.map(r => {
+                    const rtime = r.datetime ? new Date(r.datetime) : null;
+                    const timeStr = rtime ? rtime.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : 'Нет времени';
+                    return `
+                        <div style="background: var(--surface-card); border: 1px solid var(--border); border-radius: 20px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 700; color: var(--text);">${r.label || 'Напоминание'}</div>
+                                <div style="font-size: 0.85rem; color: var(--text-dim);">${timeStr}</div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button style="padding: 6px 12px; background: var(--danger); color: white; border: none; border-radius: 20px; font-size: 0.75rem;">Удалить</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
             }
 
             function startRinging(alarm) {
@@ -995,6 +1677,77 @@
                 sirenOsc = [];
                 if (sirenGain) { sirenGain.gain.value = 0; sirenGain = null; }
                 if (wakeLock) { try { await wakeLock.release(); } catch(e){} wakeLock = null; }
+            }
+
+            // IndexedDB for music storage
+            let musicDb = null;
+
+            async function initMusicDb() {
+                if (!('indexedDB' in window)) return;
+                try {
+                    musicDb = await indexedDB.open('SmartAlarmMusic', 1);
+                    musicDb.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('music')) {
+                            db.createObjectStore('music', { keyPath: 'id' });
+                        }
+                    };
+                    musicDb.onsuccess = (e) => {
+                        musicDb = e.target.result;
+                    };
+                } catch (e) {
+                    console.error("IndexedDB init error:", e);
+                }
+            }
+
+            async function saveMusicToIndexedDB(file) {
+                if (!musicDb) await initMusicDb();
+                if (!musicDb) return;
+
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const arrayBuffer = reader.result;
+                        const transaction = musicDb.transaction('music', 'readwrite');
+                        const store = transaction.objectStore('music');
+                        const record = {
+                            id: file.name + '_' + Date.now(),
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                            data: arrayBuffer,
+                            created: new Date().toISOString()
+                        };
+                        store.add(record);
+                        transaction.oncomplete = () => resolve(record);
+                        transaction.onerror = () => reject(transaction.error);
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            async function playSavedMusic(id) {
+                if (!musicDb) return;
+                try {
+                    const transaction = musicDb.transaction('music', 'readonly');
+                    const store = transaction.objectStore('music');
+                    const request = store.get(id);
+                    request.onsuccess = () => {
+                        const record = request.result;
+                        if (record && record.data) {
+                            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            const arrayBuffer = record.data;
+                            audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                                const source = audioCtx.createBufferSource();
+                                source.buffer = buffer;
+                                source.connect(audioCtx.destination);
+                                source.start();
+                            }, (err) => console.error("Audio decode error:", err));
+                        }
+                    };
+                } catch (e) {
+                    console.error("Play saved music error:", e);
+                }
             }
 
             function nextTask() {
