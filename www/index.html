@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Умный Будильник</title>
+    <script>
+        window.onerror = function(msg, url, line) {
+            const err = document.createElement('div');
+            err.style.position = 'fixed';
+            err.style.top = '0';
+            err.style.left = '0';
+            err.style.width = '100%';
+            err.style.background = 'red';
+            err.style.color = 'white';
+            err.style.padding = '10px';
+            err.style.zIndex = '9999';
+            err.textContent = 'Ошибка: ' + msg + ' (Line: ' + line + ')';
+            document.body.appendChild(err);
+        };
+    </script>
     <style>
         :root {
             --bg: #0c0f17;
@@ -2083,35 +2098,6 @@
                 }
             }
 
-            function genMath(d) {
-                if (d === 1) {
-                    const a = Math.floor(Math.random()*9)+1, b = Math.floor(Math.random()*9)+1;
-                    return { txt: `${a} + ${b}`, ans: a+b };
-                }
-                if (d === 2) {
-                    const a = Math.floor(Math.random()*90)+10, b = Math.floor(Math.random()*90)+10;
-                    return { txt: `${a} + ${b}`, ans: a+b };
-                }
-                if (d === 3) {
-                    const a = Math.floor(Math.random()*12)+2, b = Math.floor(Math.random()*10)+2, c = Math.floor(Math.random()*50)+10;
-                    return { txt: `${a} × ${b} + ${c}`, ans: a*b+c };
-                }
-                if (d === 4) {
-                    const a = Math.floor(Math.random()*20)+10, b = Math.floor(Math.random()*9)+2, c = Math.floor(Math.random()*100)+50;
-                    return { txt: `${a} × ${b} - ${c}`, ans: a*b-c };
-                }
-                const a = Math.floor(Math.random()*15)+10, b = Math.floor(Math.random()*15)+5, c = Math.floor(Math.random()*15)+10, d2 = Math.floor(Math.random()*10)+5;
-                return { txt: `(${a} × ${b}) + (${c} × ${d2})`, ans: (a*b)+(c*d2) };
-            }
-
-            function genCode(d) {
-                const c1 = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-                const c2 = "abcdefghijkmnopqrstuvwxyz";
-                const c3 = "!@#$%^&*";
-                let pool = c1, len = 5;
-                if (d >= 3) { pool += c2; len = 8; }
-                if (d === 5) { pool += c3; len = 12; }
-                let res = "";
-                for(let i=0; i<len; i++) res += pool[Math.floor(Math.random()*pool.length)];
-                return res;
-            }
+    <script src="app.js"></script>
+</body>
+</html>
