@@ -1038,6 +1038,1046 @@ function renderTask() {
                 }
             }
 
+function cacheDom() {
+                dom.topClock = document.getElementById('top-clock');
+                dom.banner = document.getElementById('next-alarm-banner');
+                dom.alarmList = document.getElementById('alarm-list');
+                dom.fab = document.getElementById('fab-add');
+                dom.btnTest = document.getElementById('btn-test-alarm');
+                dom.modal = document.getElementById('alarm-modal');
+                dom.mTime = document.getElementById('edit-time');
+                dom.mLabel = document.getElementById('edit-label');
+                dom.mSound = document.getElementById('edit-sound');
+                dom.mDiff = document.getElementById('edit-difficulty');
+                dom.mRounds = document.getElementById('edit-rounds');
+                dom.mDiffLabel = document.getElementById('val-diff-label');
+                dom.mRoundsLabel = document.getElementById('val-rounds');
+                dom.btnSave = document.getElementById('btn-save');
+                dom.btnDelete = document.getElementById('btn-delete');
+                dom.btnClose = document.getElementById('modal-close');
+                dom.ringOverlay = document.getElementById('ringing-overlay');
+                dom.ringClock = document.getElementById('ring-clock');
+                dom.ringLabel = document.getElementById('ring-label');
+                dom.ringInfo = document.getElementById('ring-task-info');
+                dom.ringProgress = document.getElementById('ring-progress-bar');
+                dom.ringFeedback = document.getElementById('ring-feedback');
+                dom.taskBody = document.getElementById('task-body');
+
+                // New DOM elements
+                dom.tabNav = document.querySelector('.tab-nav');
+                dom.contentArea = document.getElementById('content-area');
+            }
+
+function init() {
+                cacheDom();
+                renderList();
+                updateBanner();
+                bindEvents();
+                setupTabNavigation();
+                updateTimerDisplay();
+                updateStopwatchDisplay();
+                setInterval(tick, 1000);
+            }
+
+function setupTabNavigation() {
+                // Initialize bottom navigation buttons if not already created
+                let bottomNav = document.querySelector('.bottom-nav');
+                if (!bottomNav) {
+                    bottomNav = document.createElement('div');
+                    bottomNav.className = 'bottom-nav';
+                    bottomNav.innerHTML = `
+                        <button class="bottom-nav-btn ${state.currentTab === 'alarms' ? 'active' : ''}" data-tab="alarms">
+                            <span class="icon">⏰</span>
+                            <span>Будильники</span>
+                        </button>
+                        <button class="bottom-nav-btn ${state.currentTab === 'series' ? 'active' : ''}" data-tab="series">
+                            <span class="icon">🔁</span>
+                            <span>Серия</span>
+                        </button>
+                        <button class="bottom-nav-btn ${state.currentTab === 'timer' ? 'active' : ''}" data-tab="timer">
+                            <span class="icon">⏳</span>
+                            <span>Таймер</span>
+                        </button>
+                        <button class="bottom-nav-btn ${state.currentTab === 'stopwatch' ? 'active' : ''}" data-tab="stopwatch">
+                            <span class="icon">⏱️</span>
+                            <span>Секундомер</span>
+                        </button>
+                    `;
+                    document.body.appendChild(bottomNav);
+                }
+
+                // Update bottom nav button states
+                const bottomNavBtns = bottomNav.querySelectorAll('.bottom-nav-btn');
+                bottomNavBtns.forEach(btn => {
+                    const tab = btn.dataset.tab;
+                    btn.classList.toggle('active', state.currentTab === tab);
+                });
+
+                // Handle bottom nav button clicks
+                bottomNavBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tab = btn.dataset.tab;
+                        changeTab(tab);
+                    });
+                });
+            }
+
+function changeTab(tab) {
+                state.currentTab = tab;
+
+                // Update bottom nav buttons
+                const bottomNavBtns = document.querySelectorAll('.bottom-nav-btn');
+                bottomNavBtns.forEach(btn => {
+                    btn.classList.toggle('active', state.currentTab === btn.dataset.tab);
+                });
+
+                // Hide all tab contents
+                document.querySelectorAll('.tab-content').forEach(section => {
+                    section.classList.add('hidden');
+                });
+
+                // Show the selected tab content
+                const activeSection = document.getElementById(tab + '-tab');
+                if (activeSection) {
+                    activeSection.classList.remove('hidden');
+                }
+
+                // Refresh relevant content based on tab
+                if (tab === 'alarms') {
+                    renderList();
+                    updateBanner();
+                } else if (tab === 'series') {
+                    // Series tab already rendered
+                } else if (tab === 'reminders') {
+                    renderRemindersList();
+                } else if (tab === 'timer') {
+                    updateTimerDisplay();
+                } else if (tab === 'stopwatch') {
+                    updateStopwatchDisplay();
+                }
+            }
+
+function tick() {
+                const now = new Date();
+                const timeStr = now.toTimeString().split(' ')[0];
+                if (dom.topClock) dom.topClock.textContent = timeStr;
+
+                if (state.isRinging && dom.ringClock) {
+                    dom.ringClock.textContent = timeStr.substring(0, 5);
+                }
+
+                if (now.getSeconds() === 0 && !state.isRinging) {
+                    const current = timeStr.substring(0, 5);
+                    const currentDay = now.getDay();
+
+                    // Check regular alarms
+                    state.alarms.forEach(a => {
+                        if (a.enabled && a.time === current && (!a.days || a.days.length === 0 || a.days.includes(currentDay))) {
+                            startRinging(a);
+                        }
+                    });
+
+                    // Check series alarms
+                    if (state.seriesConfig.enabled) {
+                        const startParts = state.seriesConfig.startTime.split(':').map(Number);
+                        const endParts = state.seriesConfig.endTime.split(':').map(Number);
+                        const startMinutes = startParts[0] * 60 + startParts[1];
+                        const endMinutes = endParts[0] * 60 + endParts[1];
+                        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                        if (currentMinutes >= startMinutes && currentMinutes <= endMinutes) {
+                            const diff = currentMinutes - startMinutes;
+                            if (diff % state.seriesConfig.step === 0) {
+                                const t = (currentMinutes - startMinutes) / state.seriesConfig.step;
+                                const alarmTime = `${String(Math.floor(startMinutes / 60)).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+                                startRinging({
+                                    id: 'series_' + t,
+                                    time: alarmTime,
+                                    label: 'Серия',
+                                    difficulty: state.seriesConfig.difficulty,
+                                    rounds: state.seriesConfig.rounds,
+                                    mode: state.seriesConfig.mode,
+                                    sound: 'siren',
+                                    enabled: true,
+                                    days: state.seriesConfig.days
+                                });
+                            }
+                        }
+                    }
+
+                    // Check reminders
+                    state.reminders.forEach(r => {
+                        if (!r.enabled) return;
+                        if (r.datetime) {
+                            const rDate = new Date(r.datetime);
+                            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                            const rMinutes = rDate.getHours() * 60 + rDate.getMinutes();
+                            if (currentMinutes >= rMinutes && Math.abs(currentMinutes - rMinutes) < 60) {
+                                startRinging({ id: 'reminder_' + r.id, time: r.time || '00:00', label: r.label || 'Напоминание', difficulty: r.difficulty || 0, rounds: 1, mode: 'math', sound: r.sound || 'siren', enabled: true });
+                            }
+                        }
+                    });
+                }
+            }
+
+function bindEvents() {
+                const openAddModal = () => openModal();
+                if (dom.fab) {
+                    dom.fab.addEventListener('click', openAddModal);
+                    dom.fab.addEventListener('touchstart', (e) => { e.preventDefault(); openAddModal(); });
+                }
+
+                const runTest = () => {
+                    startRinging({
+                        id: 'test',
+                        time: '00:00',
+                        label: 'Тестовый будильник',
+                        difficulty: 3,
+                        rounds: 3,
+                        mode: 'math',
+                        sound: 'siren'
+                    });
+                };
+                if (dom.btnTest) {
+                    dom.btnTest.addEventListener('click', runTest);
+                    dom.btnTest.addEventListener('touchstart', (e) => { e.preventDefault(); runTest(); });
+                }
+
+                const closeModalEvent = () => closeModal();
+                if (dom.btnClose) {
+                    dom.btnClose.addEventListener('click', closeModalEvent);
+                    dom.btnClose.addEventListener('touchstart', (e) => { e.preventDefault(); closeModalEvent(); });
+                }
+
+                if (dom.mDiff) {
+                    dom.mDiff.addEventListener('input', () => {
+                        if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
+                    });
+                }
+                if (dom.mRounds) {
+                    dom.mRounds.addEventListener('input', () => {
+                        if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = dom.mRounds.value;
+                    });
+                }
+
+                if (dom.btnSave) {
+                    dom.btnSave.addEventListener('click', save);
+                    dom.btnSave.addEventListener('touchstart', (e) => { e.preventDefault(); save(); });
+                }
+                if (dom.btnDelete) {
+                    dom.btnDelete.addEventListener('click', del);
+                    dom.btnDelete.addEventListener('touchstart', (e) => { e.preventDefault(); del(); });
+                }
+
+                document.querySelectorAll('.day-btn').forEach(btn => {
+                    const toggleDay = (e) => {
+                        e.preventDefault();
+                        const day = parseInt(btn.dataset.day);
+                        if (state.selectedDays.includes(day)) {
+                            state.selectedDays = state.selectedDays.filter(d => d !== day);
+                        } else {
+                            state.selectedDays.push(day);
+                        }
+                        btn.classList.toggle('selected', state.selectedDays.includes(day));
+                    };
+                    btn.addEventListener('click', toggleDay);
+                    btn.addEventListener('touchstart', toggleDay);
+                });
+
+                document.querySelectorAll('.radio-card').forEach(c => {
+                    const handleRadio = (e) => {
+                        e.preventDefault();
+                        const radio = c.querySelector('input');
+                        if (radio) {
+                            radio.checked = true;
+                            updateRadioUI();
+                        }
+                    };
+                    c.addEventListener('click', handleRadio);
+                    c.addEventListener('touchstart', handleRadio);
+                });
+
+                // Tab navigation
+                setupTabNavigation();
+
+                // FAB + alarm add
+                const fabAddAlarm = () => openModal();
+                if (dom.fab) {
+                    dom.fab.addEventListener('click', fabAddAlarm);
+                    dom.fab.addEventListener('touchstart', (e) => { e.preventDefault(); fabAddAlarm(); });
+                }
+
+                // Add alarm button in alarms tab
+                const btnAddAlarm = document.getElementById('btn-add-alarm');
+                if (btnAddAlarm) {
+                    btnAddAlarm.addEventListener('click', () => openModal());
+                }
+
+                // Series generation
+                const btnGenerateSeries = document.getElementById('btn-generate-series');
+                if (btnGenerateSeries) {
+                    btnGenerateSeries.addEventListener('click', generateSeries);
+                }
+
+                // Enable series button
+                const btnEnableSeries = document.getElementById('btn-enable-series');
+                if (btnEnableSeries) {
+                    btnEnableSeries.addEventListener('click', enableSeries);
+                }
+
+                // Series config inputs
+                const seriesStart = document.getElementById('series-start');
+                const seriesEnd = document.getElementById('series-end');
+                const seriesStep = document.getElementById('series-step');
+                const seriesDifficulty = document.getElementById('series-difficulty');
+                const seriesRounds = document.getElementById('series-rounds');
+                const seriesDaysSelector = document.getElementById('series-days-selector');
+                const seriesModeSelector = document.getElementById('series-mode-selector');
+
+                if (seriesStart) {
+                    seriesStart.addEventListener('change', updateSeriesConfig);
+                }
+                if (seriesEnd) {
+                    seriesEnd.addEventListener('change', updateSeriesConfig);
+                }
+                if (seriesStep) {
+                    seriesStep.addEventListener('input', updateSeriesConfig);
+                }
+                if (seriesDifficulty) {
+                    seriesDifficulty.addEventListener('input', () => {
+                        if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[seriesDifficulty.value];
+                    });
+                }
+                if (seriesRounds) {
+                    seriesRounds.addEventListener('input', () => {
+                        if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = seriesRounds.value;
+                    });
+                }
+                if (seriesDaysSelector) {
+                    seriesDaysSelector.querySelectorAll('.day-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const day = parseInt(btn.dataset.day);
+                            if (state.seriesConfig.days.includes(day)) {
+                                state.seriesConfig.days = state.seriesConfig.days.filter(d => d !== day);
+                            } else {
+                                state.seriesConfig.days.push(day);
+                            }
+                            btn.classList.toggle('selected', state.seriesConfig.days.includes(day));
+                        });
+                        btn.addEventListener('touchstart', (e) => { e.preventDefault(); toggleDaySeries(btn); });
+                    });
+                }
+                if (seriesModeSelector) {
+                    seriesModeSelector.querySelectorAll('.radio-card').forEach(c => {
+                        c.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const radio = c.querySelector('input');
+                            if (radio) {
+                                radio.checked = true;
+                                updateRadioUI();
+                            }
+                        });
+                    });
+                }
+
+                // Timer buttons
+                const btnStartTimer = document.getElementById('btn-start-timer');
+                const btnPauseTimer = document.getElementById('btn-pause-timer');
+                const btnResetTimer = document.getElementById('btn-reset-timer');
+                if (btnStartTimer) btnStartTimer.addEventListener('click', startTimer);
+                if (btnPauseTimer) btnPauseTimer.addEventListener('click', pauseTimer);
+                if (btnResetTimer) btnResetTimer.addEventListener('click', resetTimer);
+
+                // Timer task require
+                const timerTaskBox = document.querySelector('label[for="timer-task-require"]');
+                if (timerTaskBox) {
+                    timerTaskBox.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                    });
+                }
+
+                // Stopwatch buttons
+                const btnStartStopwatch = document.getElementById('btn-start-stopwatch');
+                const btnLapStopwatch = document.getElementById('btn-lap-stopwatch');
+                const btnResetStopwatch = document.getElementById('btn-reset-stopwatch');
+                if (btnStartStopwatch) btnStartStopwatch.addEventListener('click', startStopwatch);
+                if (btnLapStopwatch) btnLapStopwatch.addEventListener('click', lapStopwatch);
+                if (btnResetStopwatch) btnResetStopwatch.addEventListener('click', resetStopwatch);
+
+                // Reminder add button
+                const btnAddReminder = document.getElementById('btn-add-reminder');
+                if (btnAddReminder) {
+                    btnAddReminder.addEventListener('click', openReminderModal);
+                }
+
+                // Window focus handling
+                window.addEventListener('focus', () => {
+                    try {
+                        startLockTask();
+                    } catch (e) {}
+                });
+            }
+
+function toggleDaySeries(btn) {
+                const day = parseInt(btn.dataset.day);
+                if (state.seriesConfig.days.includes(day)) {
+                    state.seriesConfig.days = state.seriesConfig.days.filter(d => d !== day);
+                } else {
+                    state.seriesConfig.days.push(day);
+                }
+                btn.classList.toggle('selected', state.seriesConfig.days.includes(day));
+            }
+
+function updateRadioUI() {
+                document.querySelectorAll('.radio-card').forEach(c => {
+                    const radio = c.querySelector('input');
+                    c.classList.toggle('selected', radio && radio.checked);
+                });
+            }
+
+function openModal(id = null) {
+                state.editingId = id;
+                const a = id ? state.alarms.find(x => x.id === id) : null;
+                if (dom.mTime) dom.mTime.value = a ? a.time : "07:30";
+                if (dom.mLabel) dom.mLabel.value = a ? a.label : "";
+                if (dom.mSound) dom.mSound.value = a ? a.sound : "siren";
+                if (dom.mDiff) dom.mDiff.value = a ? a.difficulty : 3;
+                if (dom.mRounds) dom.mRounds.value = a ? a.rounds : 5;
+                if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[dom.mDiff.value];
+                if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = dom.mRounds.value;
+
+                state.selectedDays = a ? [...(a.days || [1,2,3,4,5])] : [1,2,3,4,5];
+                document.querySelectorAll('.day-btn').forEach(btn => {
+                    const day = parseInt(btn.dataset.day);
+                    btn.classList.toggle('selected', state.selectedDays.includes(day));
+                });
+
+                const mode = a ? a.mode : 'math';
+                const modeInput = document.querySelector(`input[name="edit-mode"][value="${mode}"]`);
+                if (modeInput) modeInput.checked = true;
+                updateRadioUI();
+
+                if (dom.btnDelete) dom.btnDelete.style.display = a ? "flex" : "none";
+                if (dom.modal) dom.modal.classList.add('active');
+            }
+
+function closeModal() {
+                if (dom.modal) dom.modal.classList.remove('active');
+            }
+
+function openReminderModal() {
+                state.editingId = null;
+                if (dom.mTime) dom.mTime.value = "";
+                if (dom.mLabel) dom.mLabel.value = "";
+                if (dom.mSound) dom.mSound.value = "siren";
+                if (dom.mDiff) dom.mDiff.value = 0;
+                if (dom.mRounds) dom.mRounds.value = 5;
+                if (dom.mDiffLabel) dom.mDiffLabel.textContent = diffNames[0];
+                if (dom.mRoundsLabel) dom.mRoundsLabel.textContent = "5";
+
+                state.selectedDays = [];
+                document.querySelectorAll('.day-btn').forEach(btn => {
+                    const day = parseInt(btn.dataset.day);
+                    btn.classList.toggle('selected', state.selectedDays.includes(day));
+                });
+
+                if (dom.btnDelete) dom.btnDelete.classList.add('hidden');
+                if (dom.modal) dom.modal.classList.add('active');
+            }
+
+function save() {
+                const mode = (document.querySelector('input[name="edit-mode"]:checked') || {}).value || 'math';
+
+                if (state.currentTab === 'reminders') {
+                    // Save reminder
+                    const newReminder = {
+                        id: state.editingId || Date.now().toString(),
+                        label: dom.mLabel && dom.mLabel.value ? dom.mLabel.value : 'Напоминание',
+                        datetime: dom.mTime ? dom.mTime.value : null,
+                        sound: dom.mSound ? dom.mSound.value : 'siren',
+                        difficulty: dom.mDiff ? parseInt(dom.mDiff.value) : 0,
+                        enabled: true
+                    };
+
+                    if (state.editingId) {
+                        const i = state.reminders.findIndex(x => x.id === state.editingId);
+                        if (i !== -1) state.reminders[i] = newReminder;
+                    } else {
+                        state.reminders.push(newReminder);
+                    }
+                    localStorage.setItem('reminders_v1', JSON.stringify(state.reminders));
+                    renderRemindersList();
+                    closeModal();
+                    return;
+                }
+
+                const newAlarm = {
+                    id: state.editingId || Date.now().toString(),
+                    time: dom.mTime ? dom.mTime.value : "07:30",
+                    label: dom.mLabel && dom.mLabel.value ? dom.mLabel.value : "Будильник",
+                    sound: dom.mSound ? dom.mSound.value : "siren",
+                    difficulty: dom.mDiff ? parseInt(dom.mDiff.value) : 3,
+                    rounds: dom.mRounds ? parseInt(dom.mRounds.value) : 5,
+                    days: [...state.selectedDays],
+                    mode: mode,
+                    enabled: true
+                };
+
+                if (state.editingId) {
+                    const i = state.alarms.findIndex(x => x.id === state.editingId);
+                    if (i !== -1) state.alarms[i] = newAlarm;
+                } else {
+                    state.alarms.push(newAlarm);
+                }
+
+                syncAndPersist();
+                closeModal();
+            }
+
+function del() {
+                if (!state.editingId) return;
+                state.alarms = state.alarms.filter(x => x.id !== state.editingId);
+                syncAndPersist();
+                closeModal();
+            }
+
+function syncAndPersist() {
+                try {
+                    localStorage.setItem('alarms_v5', JSON.stringify(state.alarms));
+                } catch (e) {
+                    console.error("LocalStorage save error:", e);
+                }
+                renderList();
+                updateBanner();
+            }
+
+function renderList() {
+                if (!dom.alarmList) return;
+                dom.alarmList.innerHTML = state.alarms.sort((a,b) => a.time.localeCompare(b.time)).map(a => {
+                    const daysText = (!a.days || a.days.length === 7) ? "Каждый день" : (a.days.length === 0 ? "Один раз" : a.days.map(d => dayNamesShort[d]).join(', '));
+                    return `
+                        <div class="alarm-card ${a.enabled ? '' : 'disabled'}" data-alarm-id="${a.id}">
+                            <div class="alarm-card-left" data-alarm-id="${a.id}">
+                                <div class="alarm-card-time">${a.time}</div>
+                                <div class="alarm-card-label">${a.label}</div>
+                                <div class="alarm-card-meta">
+                                    <span class="badge">${daysText}</span>
+                                    <span class="badge difficulty-${a.difficulty}">${diffNames[a.difficulty]}</span>
+                                    <span class="badge">${a.mode.toUpperCase()} × ${a.rounds}</span>
+                                </div>
+                            </div>
+                            <label class="switch" data-alarm-id="${a.id}">
+                                <input type="checkbox" ${a.enabled ? 'checked' : ''} data-alarm-id="${a.id}">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    `;
+                }).join('');
+
+                dom.alarmList.querySelectorAll('.alarm-card').forEach(card => {
+                    const alarmId = card.dataset.alarmId;
+                    const leftPart = card.querySelector('.alarm-card-left');
+                    const switchInput = card.querySelector('input[type="checkbox"]');
+
+                    const handleCardClick = (e) => {
+                        e.stopPropagation();
+                        openModal(alarmId);
+                    };
+
+                    const handleSwitchChange = (e) => {
+                        e.stopPropagation();
+                        const a = state.alarms.find(x => x.id === alarmId);
+                        if (a) {
+                            a.enabled = switchInput.checked;
+                            syncAndPersist();
+                        }
+                    };
+
+                    if (leftPart) {
+                        leftPart.addEventListener('click', handleCardClick);
+                        leftPart.addEventListener('touchstart', (e) => { e.preventDefault(); handleCardClick(e); });
+                    }
+
+                    if (switchInput) {
+                        switchInput.addEventListener('change', handleSwitchChange);
+                        switchInput.addEventListener('click', (e) => e.stopPropagation());
+                    }
+                });
+
+                // Update banner after rendering
+                updateBanner();
+            }
+
+function updateBanner() {
+                if (!dom.banner) return;
+                const now = new Date();
+                let min = Infinity;
+                state.alarms.forEach(a => {
+                    if (!a.enabled) return;
+                    const [h, m] = a.time.split(':').map(Number);
+                    let t = new Date(now);
+                    t.setHours(h, m, 0, 0);
+                    if (t <= now) t.setDate(t.getDate() + 1);
+                    const d = t - now;
+                    if (d < min) min = d;
+                });
+                if (min === Infinity) dom.banner.innerHTML = "<span>💤 Нет активных будильников</span>";
+                else {
+                    const h = Math.floor(min/3600000), m = Math.floor((min%3600000)/60000);
+                    dom.banner.innerHTML = `<span>🔔 Следующий через ${h} ч. ${m} мин.</span>`;
+                }
+            }
+
+function formatTime(ms) {
+                const totalSeconds = Math.floor(ms / 1000);
+                const hrs = Math.floor(totalSeconds / 3600);
+                const mins = Math.floor((totalSeconds % 3600) / 60);
+                const secs = totalSeconds % 60;
+                const cs = Math.floor((ms % 1000) / 10);
+                return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
+            }
+
+function renderTimer() {
+                if (state.timerState.running) {
+                    const startTime = Date.now() - (state.timerState.hours * 3600000 + state.timerState.minutes * 60000 + state.timerState.seconds * 1000);
+                    const elapsed = Date.now() - startTime;
+                    const remaining = (state.timerState.hours * 3600000 + state.timerState.minutes * 60000 + state.timerState.seconds * 1000) - elapsed;
+                    if (remaining <= 0) {
+                        clearInterval(state.timerState.intervalId);
+                        state.timerState.running = false;
+                        document.getElementById('btn-start-timer').style.display = 'inline-block';
+                        document.getElementById('btn-pause-timer').style.display = 'none';
+                        // Alarm!
+                        startRinging({ id: 'timer', time: '00:00', label: 'Таймер', difficulty: 3, rounds: 1, mode: 'math', sound: 'siren', enabled: true });
+                        return;
+                    }
+                    document.getElementById('timer-display').textContent = formatTime(remaining);
+                }
+            }
+
+function renderStopwatch() {
+                if (state.stopwatchState.running) {
+                    const elapsed = Date.now() - (state.stopwatchState.intervalStart || Date.now());
+                    const totalMs = elapsed + (state.stopwatchState.laps.reduce((sum, lap) => sum + lap.ms, 0) || 0);
+                    document.getElementById('stopwatch-display').textContent = formatTime(totalMs);
+                }
+            }
+
+function startTimer() {
+                state.timerState = {
+                    hours: parseInt(document.getElementById('timer-hours').value) || 0,
+                    minutes: parseInt(document.getElementById('timer-minutes').value) || 0,
+                    seconds: parseInt(document.getElementById('timer-seconds').value) || 0,
+                    running: true,
+                    intervalId: setInterval(renderTimer, 10)
+                };
+                document.getElementById('btn-start-timer').style.display = 'none';
+                document.getElementById('btn-pause-timer').style.display = 'inline-block';
+            }
+
+function pauseTimer() {
+                clearInterval(state.timerState.intervalId);
+                state.timerState.running = false;
+                document.getElementById('btn-start-timer').style.display = 'inline-block';
+                document.getElementById('btn-pause-timer').style.display = 'none';
+            }
+
+function resetTimer() {
+                clearInterval(state.timerState.intervalId);
+                state.timerState = {
+                    hours: 0,
+                    minutes: 30,
+                    seconds: 0,
+                    running: false
+                };
+                document.getElementById('timer-display').textContent = '00:30:00';
+                document.getElementById('btn-start-timer').style.display = 'inline-block';
+                document.getElementById('btn-pause-timer').style.display = 'none';
+            }
+
+function startStopwatch() {
+                state.stopwatchState = {
+                    minutes: 0,
+                    seconds: 0,
+                    centiseconds: 0,
+                    running: true,
+                    intervalStart: Date.now()
+                };
+                document.getElementById('btn-start-stopwatch').style.display = 'none';
+                document.getElementById('btn-lap-stopwatch').style.display = 'inline-block';
+                renderStopwatch();
+            }
+
+function lapStopwatch() {
+                const now = Date.now();
+                const elapsed = now - (state.stopwatchState.intervalStart || now);
+                state.stopwatchState.laps.push({ ms: elapsed, time: formatTime(elapsed) });
+                renderLapsList();
+            }
+
+function resetStopwatch() {
+                clearInterval && clearTimeout();
+                state.stopwatchState = {
+                    minutes: 0,
+                    seconds: 0,
+                    centiseconds: 0,
+                    running: false,
+                    intervalStart: null,
+                    laps: []
+                };
+                document.getElementById('stopwatch-display').textContent = '00:00:00.00';
+                document.getElementById('btn-start-stopwatch').style.display = 'inline-block';
+                document.getElementById('btn-lap-stopwatch').style.display = 'none';
+                document.getElementById('laps-list').innerHTML = '';
+                document.getElementById('laps-list').style.display = 'none';
+            }
+
+function renderLapsList() {
+                const lapsList = document.getElementById('laps-list');
+                if (state.stopwatchState.laps.length === 0) {
+                    lapsList.innerHTML = '<div style="color: var(--text-dim);">Нет кругов</div>';
+                    return;
+                }
+                lapsList.innerHTML = state.stopwatchState.laps.map((lap, i) => `
+                    <div style="padding: 8px; border-bottom: 1px solid var(--border); color: var(--text);">
+                        <span>Круг ${i + 1}</span>
+                        <span style="margin-left: auto; color: var(--text-dim);">${lap.time}</span>
+                    </div>
+                `).join('');
+                document.getElementById('laps-list').style.display = 'block';
+            }
+
+function updateSeriesConfig() {
+                state.seriesConfig.startTime = document.getElementById('series-start')?.value || '06:00';
+                state.seriesConfig.endTime = document.getElementById('series-end')?.value || '07:25';
+                state.seriesConfig.step = parseInt(document.getElementById('series-step')?.value) || 5;
+                state.seriesConfig.difficulty = parseInt(document.getElementById('series-difficulty')?.value) || 3;
+                state.seriesConfig.rounds = parseInt(document.getElementById('series-rounds')?.value) || 1;
+                updateSeriesPreview();
+            }
+
+function updateSeriesPreview() {
+                const start = document.getElementById('series-start')?.value || '06:00';
+                const end = document.getElementById('series-end')?.value || '07:25';
+                const step = parseInt(document.getElementById('series-step')?.value) || 5;
+                const countEl = document.getElementById('series-count');
+                const timesEl = document.getElementById('series-times');
+
+                const startMs = parseInt(start.split(':')[0]) * 60000 + parseInt(start.split(':')[1]) * 60000;
+                const endMs = parseInt(end.split(':')[0]) * 60000 + parseInt(end.split(':')[1]) * 60000;
+                const totalMinutes = (endMs - startMs) / 60000;
+
+                const count = Math.floor(totalMinutes / step) + 1;
+                const times = [];
+                for (let i = 0; i < count; i++) {
+                    const m = Math.floor(startMs / 60000) + i * step;
+                    const h = Math.floor(m / 60);
+                    const mins = m % 60;
+                    times.push(`${h.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+                }
+
+                if (countEl) countEl.textContent = count;
+                if (timesEl) timesEl.innerHTML = times.map(t => t).join(', ');
+                if (countEl && timesEl) {
+                    const preview = document.getElementById('series-preview');
+                    if (preview) {
+                        preview.style.display = 'flex';
+                    }
+                }
+            }
+
+function generateSeries() {
+                const startTime = document.getElementById('series-start')?.value || '06:00';
+                const endTime = document.getElementById('series-end')?.value || '07:25';
+                const step = parseInt(document.getElementById('series-step')?.value) || 5;
+                const difficulty = parseInt(document.getElementById('series-difficulty')?.value) || 3;
+                const rounds = parseInt(document.getElementById('series-rounds')?.value) || 1;
+                const mode = document.querySelector('input[name="series-mode"]:checked')?.value || 'math';
+                const days = state.seriesConfig.days || [1, 2, 3, 4, 5];
+
+                const startParts = startTime.split(':').map(Number);
+                const endParts = endTime.split(':').map(Number);
+                const startMinutes = startParts[0] * 60 + startParts[1];
+                const endMinutes = endParts[0] * 60 + endParts[1];
+
+                const alarms = [];
+                for (let t = startMinutes; t <= endMinutes; t += step) {
+                    const h = Math.floor(t / 60);
+                    const m = t % 60;
+                    alarms.push({
+                        id: Date.now() + '_' + t,
+                        time: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`,
+                        label: 'Серия',
+                        sound: 'siren',
+                        difficulty: difficulty,
+                        rounds: rounds,
+                        mode: mode,
+                        days: days,
+                        enabled: true
+                    });
+                }
+
+                state.alarms = [...state.alarms, ...alarms];
+                syncAndPersist();
+                closeModal();
+                renderList();
+                updateBanner();
+            }
+
+function startRinging(alarm) {
+                state.isRinging = true;
+                state.activeAlarm = alarm;
+
+                if (dom.ringLabel) dom.ringLabel.textContent = alarm.label || "Будильник";
+                if (dom.ringOverlay) dom.ringOverlay.classList.remove('hidden');
+
+                startSound(alarm.sound || 'siren');
+                taskState = { step: 0, total: alarm.rounds, difficulty: alarm.difficulty, mode: alarm.mode };
+                nextTask();
+            }
+
+function startSound(soundType) {
+                try {
+                    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                    sirenGain = audioCtx.createGain();
+                    sirenGain.connect(audioCtx.destination);
+                    sirenGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    sirenGain.gain.exponentialRampToValueAtTime(0.9, audioCtx.currentTime + 3);
+
+                    for(let i=0; i<2; i++) {
+                        const o = audioCtx.createOscillator();
+                        if (soundType === 'bell') {
+                            o.type = 'sine';
+                            o.frequency.value = i === 0 ? 880 : 1320;
+                        } else if (soundType === 'digital') {
+                            o.type = 'square';
+                            o.frequency.value = i === 0 ? 1046 : 1318;
+                        } else {
+                            o.type = i === 0 ? 'sawtooth' : 'square';
+                            o.frequency.value = i === 0 ? 440 : 660;
+                        }
+                        o.connect(sirenGain);
+                        o.start();
+                        sirenOsc.push(o);
+                    }
+
+                    let up = true;
+                    sirenTimer = setInterval(() => {
+                        if (!sirenOsc[0] || !sirenOsc[1]) return;
+                        const f1 = up ? 600 : 400, f2 = up ? 900 : 600;
+                        sirenOsc[0].frequency.exponentialRampToValueAtTime(f1, audioCtx.currentTime + 0.2);
+                        sirenOsc[1].frequency.exponentialRampToValueAtTime(f2, audioCtx.currentTime + 0.2);
+                        up = !up;
+                    }, 300);
+                } catch (e) {
+                    console.error("Audio start error:", e);
+                }
+
+                try {
+                    if ('wakeLock' in navigator) {
+                        navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
+                    }
+                } catch (e) {}
+            }
+
+function stopSound() {
+                if (sirenTimer) clearInterval(sirenTimer);
+                sirenOsc.forEach(o => { try{o.stop();}catch(e){} });
+                sirenOsc = [];
+                if (sirenGain) { sirenGain.gain.value = 0; sirenGain = null; }
+                if (wakeLock) { try { await wakeLock.release(); } catch(e){} wakeLock = null; }
+            }
+
+function initMusicDb() {
+                if (!('indexedDB' in window)) return;
+                try {
+                    musicDb = await indexedDB.open('SmartAlarmMusic', 1);
+                    musicDb.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('music')) {
+                            db.createObjectStore('music', { keyPath: 'id' });
+                        }
+                    };
+                    musicDb.onsuccess = (e) => {
+                        musicDb = e.target.result;
+                    };
+                } catch (e) {
+                    console.error("IndexedDB init error:", e);
+                }
+            }
+
+function saveMusicToIndexedDB(file) {
+                if (!musicDb) await initMusicDb();
+                if (!musicDb) return;
+
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const arrayBuffer = reader.result;
+                        const transaction = musicDb.transaction('music', 'readwrite');
+                        const store = transaction.objectStore('music');
+                        const record = {
+                            id: file.name + '_' + Date.now(),
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                            data: arrayBuffer,
+                            created: new Date().toISOString()
+                        };
+                        store.add(record);
+                        transaction.oncomplete = () => resolve(record);
+                        transaction.onerror = () => reject(transaction.error);
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+function playSavedMusic(id) {
+                if (!musicDb) return;
+                try {
+                    const transaction = musicDb.transaction('music', 'readonly');
+                    const store = transaction.objectStore('music');
+                    const request = store.get(id);
+                    request.onsuccess = () => {
+                        const record = request.result;
+                        if (record && record.data) {
+                            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            const arrayBuffer = record.data;
+                            audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                                const source = audioCtx.createBufferSource();
+                                source.buffer = buffer;
+                                source.connect(audioCtx.destination);
+                                source.start();
+                            }, (err) => console.error("Audio decode error:", err));
+                        }
+                    };
+                } catch (e) {
+                    console.error("Play saved music error:", e);
+                }
+            }
+
+function nextTask() {
+                if (taskState.mode === 'marathon') {
+                    // Logic for marathon
+                    if (taskState.currentTaskIdx === undefined) taskState.currentTaskIdx = 0;
+                    // Any error resets to 0. Correct answer moves forward.
+                    // This function should be called with `success` flag.
+                }
+                taskState.step++;
+                // ... rest ...
+            }
+
+function updateProgress() {
+                if (dom.ringInfo) dom.ringInfo.textContent = `Уровень ${taskState.difficulty} • Раунд ${taskState.step} из ${taskState.total}`;
+                if (dom.ringProgress) dom.ringProgress.style.width = `${((taskState.step-1)/taskState.total) * 100}%`;
+            }
+
+function renderTask() {
+                if (!dom.taskBody) return;
+                dom.taskBody.innerHTML = "";
+                if (dom.ringFeedback) dom.ringFeedback.textContent = "";
+                const d = taskState.difficulty;
+
+                if (taskState.mode === 'math') {
+                    const p = genMath(d);
+                    taskState.currentAnswer = p.ans;
+                    dom.taskBody.innerHTML = `
+                        <div style="font-size:1.8rem; text-align:center; margin-bottom:20px; font-weight:800; color:white;">${p.txt} = ?</div>
+                        <input type="number" id="ans-in" class="input-code" autofocus inputmode="numeric" placeholder="Ответ">
+                    `;
+                    const input = document.getElementById('ans-in');
+                    if (input) {
+                        const checkMath = () => {
+                            if (parseInt(input.value) === taskState.currentAnswer) {
+                                input.value = "";
+                                nextTask();
+                            }
+                        };
+                        input.addEventListener('input', checkMath);
+                        input.addEventListener('keyup', checkMath);
+                        setTimeout(() => input.focus(), 100);
+                    }
+                } else if (taskState.mode === 'memory') {
+                    const size = d <= 2 ? 3 : (d <= 4 ? 4 : 5);
+                    const count = 2 + d;
+                    const seq = [];
+                    for(let i=0; i<count; i++) seq.push(Math.floor(Math.random() * size * size));
+                    taskState.memorySequence = seq;
+                    taskState.memoryUserIdx = 0;
+                    taskState.memoryPlaying = true;
+
+                    const gridClass = `grid-${size}`;
+                    const tileClass = size === 5 ? "tile-sm" : "";
+                    dom.taskBody.innerHTML = `<div class="memory-grid ${gridClass}" id="mem-grid"></div>`;
+                    const grid = document.getElementById('mem-grid');
+                    for(let i=0; i<size*size; i++) {
+                        const t = document.createElement('div');
+                        t.className = `memory-tile ${tileClass}`;
+                        t.dataset.idx = i;
+                        grid.appendChild(t);
+                    }
+
+                    let i = 0;
+                    const speed = 550 - (d * 50);
+                    const itv = setInterval(() => {
+                        if (i < seq.length) {
+                            const t = grid.children[seq[i]];
+                            if (t) {
+                                t.classList.add('lit');
+                                setTimeout(() => t.classList.remove('lit'), speed/2);
+                            }
+                            i++;
+                        } else {
+                            clearInterval(itv);
+                            taskState.memoryPlaying = false;
+                            if (dom.ringFeedback) dom.ringFeedback.textContent = "Повторите последовательность!";
+                        }
+                    }, speed);
+
+                    const handleTileClick = (e) => {
+                        if (taskState.memoryPlaying) return;
+                        const t = e.target.closest('.memory-tile');
+                        if (!t) return;
+                        const idx = parseInt(t.dataset.idx);
+                        t.classList.add('active');
+                        setTimeout(() => t.classList.remove('active'), 100);
+
+                        if (idx === taskState.memorySequence[taskState.memoryUserIdx]) {
+                            taskState.memoryUserIdx++;
+                            if (taskState.memoryUserIdx === taskState.memorySequence.length) nextTask();
+                        } else {
+                            if (dom.ringFeedback) dom.ringFeedback.textContent = "Ошибка! Сброс раунда...";
+                            taskState.step = Math.max(0, taskState.step - 1);
+                            setTimeout(nextTask, 800);
+                        }
+                    };
+
+                    grid.addEventListener('click', handleTileClick);
+                    grid.addEventListener('touchstart', (e) => { e.preventDefault(); handleTileClick(e); });
+                } else {
+                    const code = genCode(d);
+                    taskState.currentAnswer = code;
+                    dom.taskBody.innerHTML = `
+                        <div style="font-size:1.4rem; text-align:center; margin-bottom:15px; font-family:monospace; letter-spacing:3px; color:var(--accent-cyan); word-break:break-all;">${code}</div>
+                        <input type="text" id="code-in" class="input-code" placeholder="Введите код точно" autofocus autocomplete="off">
+                    `;
+                    const input = document.getElementById('code-in');
+                    if (input) {
+                        const checkCode = () => {
+                            if (input.value.trim() === taskState.currentAnswer) {
+                                input.value = "";
+                                nextTask();
+                            }
+                        };
+                        input.addEventListener('input', checkCode);
+                        input.addEventListener('keyup', checkCode);
+                        setTimeout(() => input.focus(), 100);
+                    }
+                }
+            }
+
 function updateTimerDisplay() {
     const el = document.getElementById('timer-display') || document.querySelector('.timer-display');
     const sec = (typeof state !== 'undefined' && typeof state.timerRemaining === 'number') ? state.timerRemaining : 300;
