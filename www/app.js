@@ -1,3 +1,4 @@
+function updateRadioUI() { document.querySelectorAll('.radio-card, .mode-card').forEach(c => { const r = c.querySelector('input'); if (r) c.classList.toggle('selected', r.checked); }); }
 'use strict';
 
 // ============================================
