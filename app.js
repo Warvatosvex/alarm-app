@@ -1,3 +1,23 @@
+function updateTimerDisplay() {
+    const el = document.getElementById('timer-display') || document.querySelector('.timer-display');
+    const sec = (typeof state !== 'undefined' && typeof state.timerRemaining === 'number') ? state.timerRemaining : 300;
+    if (el) {
+        const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+        const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        el.textContent = h + ':' + m + ':' + s;
+    }
+}
+function updateStopwatchDisplay() {
+    const el = document.getElementById('stopwatch-display') || document.querySelector('.stopwatch-display');
+    const ms = (typeof state !== 'undefined' && typeof state.stopwatchElapsed === 'number') ? state.stopwatchElapsed : 0;
+    if (el) {
+        const m = String(Math.floor(ms / 60000)).padStart(2, '0');
+        const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+        const cs = String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
+        el.textContent = m + ':' + s + '.' + cs;
+    }
+}
 function updateRadioUI() { document.querySelectorAll('.radio-card, .mode-card').forEach(c => { const r = c.querySelector('input'); if (r) c.classList.toggle('selected', r.checked); }); }
 'use strict';
 
