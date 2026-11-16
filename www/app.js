@@ -1248,7 +1248,7 @@ function renderPairsTask(d) {
 function handlePairClick(tile, emoji, idx) {
     tile.classList.add('matched');
     tile.style.color = 'var(--success)';
-    tile.style pointerEvents = 'none';
+    tile.style.pointerEvents = 'none';
 
     // Check if pair found
     // Simple logic: just advance
