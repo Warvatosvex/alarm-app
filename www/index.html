@@ -1823,25 +1823,6 @@
                     btn.textContent = state.seriesConfig.enabled ? 'Выключить серию будильников' : 'Включить серию будильников';
                 }
                 updateSeriesPreview();
-            }
-                if (!dom.alarmList) return;
-                dom.alarmList.innerHTML = state.reminders.map(r => {
-                    const rtime = r.datetime ? new Date(r.datetime) : null;
-                    const timeStr = rtime ? rtime.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : 'Нет времени';
-                    return `
-                        <div style="background: var(--surface-card); border: 1px solid var(--border); border-radius: 20px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                            <div style="flex: 1;">
-                                <div style="font-weight: 700; color: var(--text);">${r.label || 'Напоминание'}</div>
-                                <div style="font-size: 0.85rem; color: var(--text-dim);">${timeStr}</div>
-                            </div>
-                            <div style="display: flex; gap: 8px;">
-                                <button style="padding: 6px 12px; background: var(--danger); color: white; border: none; border-radius: 20px; font-size: 0.75rem;">Удалить</button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-    }
-            }
 
             function startRinging(alarm) {
                 state.isRinging = true;
