@@ -5,27 +5,30 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     public static boolean isAlarmRinging = false;
-    public static boolean strictLock = true;
+    public static boolean strictLock = false;
     public static int savedVol = 50;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
-        wakeScreen();
+        isAlarmRinging = false;
+        strictLock = false;
+        wakeScreen(false);
         if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this))
             startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
         getBridge().getWebView().addJavascriptInterface(new Bridge(), "AndroidLock");
         checkFireIntent(getIntent());
     }
-    private void wakeScreen() {
-        if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+    private void wakeScreen(boolean urgent) {
+        if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(urgent); setTurnScreenOn(urgent); }
+        if (urgent) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
     }
-    @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); setIntent(i); wakeScreen(); checkFireIntent(i); }
+    @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); setIntent(i); checkFireIntent(i); }
     private void checkFireIntent(Intent i) {
         if (i != null && i.getBooleanExtra("ALARM_FIRED", false)) {
             i.removeExtra("ALARM_FIRED");
+            wakeScreen(true);
             String payload = getSharedPreferences("sa_prefs", MODE_PRIVATE).getString("next_payload", "{}");
-            isAlarmRinging = true;
             getBridge().getWebView().postDelayed(() -> getBridge().getWebView().evaluateJavascript("if(window.onNativeWake) window.onNativeWake(" + payload + ");", null), 500);
         }
     }
@@ -41,9 +44,6 @@ public class MainActivity extends BridgeActivity {
             try { startLockTask(); } catch (Exception ignored) {}
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             if (am != null) am.moveTaskToFront(getTaskId(), 0);
-            Intent back = new Intent(this, MainActivity.class);
-            back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            startActivity(back);
         }
     }
     @Override public void onBackPressed() { if (!isAlarmRinging || !strictLock) super.onBackPressed(); }
@@ -53,15 +53,18 @@ public class MainActivity extends BridgeActivity {
         return super.dispatchKeyEvent(e);
     }
     @Override public void onPause() { super.onPause(); forceFront(); }
-    @Override public void onStop() { super.onStop(); forceFront(); }
     @Override public void onWindowFocusChanged(boolean hasFocus) { super.onWindowFocusChanged(hasFocus); if (!hasFocus) forceFront(); }
 
     public class Bridge {
         @JavascriptInterface public void setRinging(boolean s) { setRinging(s, savedVol, true); }
         @JavascriptInterface public void setRinging(boolean s, int v) { setRinging(s, v, true); }
         @JavascriptInterface public void setRinging(boolean s, int v, boolean lock) {
-            isAlarmRinging = s; savedVol = v; strictLock = lock;
-            runOnUiThread(() -> { if (s) { setVol(v); if (strictLock) try { startLockTask(); } catch (Exception ignored) {} } else { try { stopLockTask(); } catch (Exception ignored) {} } });
+            isAlarmRinging = s; savedVol = v; strictLock = (s && lock);
+            runOnUiThread(() -> {
+                wakeScreen(s);
+                if (s) { setVol(v); if (strictLock) try { startLockTask(); } catch (Exception ignored) {} }
+                else { try { stopLockTask(); } catch (Exception ignored) {} }
+            });
         }
         @JavascriptInterface public void setVolume(int v) { savedVol = v; runOnUiThread(() -> setVol(v)); }
         @JavascriptInterface public boolean canDrawOverlays() { return Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(MainActivity.this); }
