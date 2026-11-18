@@ -195,3 +195,139 @@
 
   setInterval(inject, 300);
 })();
+(function unifiedFix() {
+  // 1. Нормальный размер и центрирование окна настройки будильника без вылезания за края
+  const st = document.createElement("style");
+  st.innerHTML = `
+    html, body { overflow-x: hidden !important; width: 100vw !important; max-width: 100vw !important; }
+    .modal.active, .modal.open, .modal[style*="flex"], .modal[style*="block"] {
+      position: fixed !important; inset: 0 !important;
+      width: 100vw !important; height: 100vh !important;
+      padding: 16px !important; box-sizing: border-box !important;
+      display: flex !important; justify-content: center !important; align-items: center !important;
+      background: rgba(0, 0, 0, 0.78) !important; z-index: 9999 !important;
+    }
+    .modal > div, .modal-content {
+      position: relative !important; inset: auto !important; transform: none !important;
+      width: 100% !important; max-width: 360px !important; max-height: 85vh !important;
+      margin: auto !important; padding: 16px !important; border-radius: 18px !important;
+      overflow-y: auto !important; overflow-x: hidden !important; box-sizing: border-box !important;
+    }
+    .modal * { max-width: 100% !important; min-width: 0 !important; box-sizing: border-box !important; }
+    .modal select, .modal input[type="text"], .modal input[type="number"] {
+      width: 100% !important; font-size: 14px !important; padding: 8px 10px !important;
+      text-overflow: ellipsis !important; white-space: nowrap !important; overflow: hidden !important;
+    }
+  `;
+  document.head.appendChild(st);
+
+  // 2. Автономный рабочий Таймер с пресетами до 1 часа и ручным вводом Мин/Сек
+  let tTotal = 300, tLeft = 300, tInterval = null;
+  const formatHMS = (sec) => {
+    const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+    const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+    const s = String(sec % 60).padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  };
+
+  setInterval(() => {
+    // Внедряем блок 100 мелодий в окно настройки будильника, если его там ещё нет
+    document.querySelectorAll('.modal input[type="file"]').forEach(fileIn => {
+      const wrap = fileIn.parentElement;
+      if (!wrap || wrap.dataset.melReady) return;
+      wrap.dataset.melReady = "1";
+      const prev = wrap.previousElementSibling;
+      if (prev && prev.querySelector(".sa-mel-sel")) return;
+
+      const list100 = window.SoundPack ? window.SoundPack.list.map(m => `<option value="${m.id}">🎵 ${m.name}</option>`).join("") : "";
+      const curV = localStorage.getItem("sa_vol") || "50";
+      const initS = localStorage.getItem("sa_last_sound") || "random";
+      const box = document.createElement("div");
+      box.style.cssText = "margin-bottom:12px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
+      box.innerHTML = `
+        <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;">Мелодия (100 неповторяющихся звуков + птицы)</label>
+        <select class="sa-mel-sel" style="margin-bottom:8px;">
+          <option value="random">🎲 Случайная (без повторов)</option>
+          ${list100}
+        </select>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button type="button" class="btn btn-sec btn-sm m-rnd" style="flex:1;min-height:38px;">🎲 Рандом</button>
+          <button type="button" class="btn btn-sec btn-sm m-prv" style="flex:1;min-height:38px;">▶️ Слушать</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+          <span>🔊 <b class="m-vl">${curV}%</b></span>
+          <input type="range" class="m-vr" min="10" max="100" value="${curV}" style="flex:1;min-height:28px;">
+        </div>`;
+      wrap.before(box);
+
+      const sel = box.querySelector(".sa-mel-sel"); sel.value = initS;
+      sel.onchange = () => localStorage.setItem("sa_last_sound", sel.value);
+      box.querySelector(".m-rnd").onclick = () => { sel.value = "random"; localStorage.setItem("sa_last_sound", "random"); box.querySelector(".m-rnd").innerText = "🎲 Выбран: РАНДОМ"; };
+      let pl = false;
+      box.querySelector(".m-prv").onclick = e => {
+        pl = !pl;
+        if (pl) { window.SoundPack.play(sel.value, Number(localStorage.getItem("sa_vol")||50), window.db||null, true); e.target.innerText = "⏹ Стоп"; }
+        else { window.SoundPack.stop(); e.target.innerText = "▶️ Слушать"; }
+      };
+      box.querySelector(".m-vr").oninput = e => { localStorage.setItem("sa_vol", e.target.value); box.querySelector(".m-vl").innerText = e.target.value + "%"; };
+    });
+
+    // Подключаем рабочий Таймер
+    const refBtn = Array.from(document.querySelectorAll("button")).find(b => b.innerText.trim() === "10 мин" || b.innerText.trim() === "15 мин");
+    if (refBtn && refBtn.parentElement && !document.getElementById("saTimerExt")) {
+      const oldRow = refBtn.parentElement, card = oldRow.parentElement || oldRow;
+      card.querySelectorAll("div, span, h1, h2").forEach(el => {
+        if (/^\d{2}:\d{2}(:\d{2})?$/.test(el.innerText.trim())) el.style.cssText += "font-size:56px!important;font-weight:800!important;margin:16px 0!important;";
+      });
+
+      const ext = document.createElement("div");
+      ext.id = "saTimerExt"; ext.style.cssText = "margin:12px 0;width:100%;box-sizing:border-box;";
+      const presets = Array.of(Array.of(60,"1 мин"),Array.of(300,"5 мин"),Array.of(600,"10 мин"),Array.of(900,"15 мин"),Array.of(1500,"25 мин"),Array.of(1800,"30 мин"),Array.of(2700,"45 мин"),Array.of(3600,"1 час"));
+      ext.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+          ${presets.map(p=>`<button type="button" class="btn btn-sec sa-tp" data-sec="${p.at(0)}" style="min-height:40px;font-size:12px;padding:4px 2px;">${p.at(1)}</button>`).join("")}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;">
+          <input type="number" id="saTMin" min="0" max="60" placeholder="Мин (до 60)" style="text-align:center;min-height:44px;">
+          <input type="number" id="saTSec" min="0" max="59" placeholder="Сек" style="text-align:center;min-height:44px;">
+          <button type="button" id="saTApply" class="btn" style="min-height:44px;padding:0 16px;">Задать</button>
+        </div>`;
+      oldRow.style.display = "none";
+      oldRow.after(ext);
+
+      const displayEl = Array.from(card.querySelectorAll("div, span, h1, h2")).find(el => /^\d{2}:\d{2}(:\d{2})?$/.test(el.innerText.trim()));
+      const renderT = () => { if (displayEl) displayEl.innerText = formatHMS(tLeft); };
+      const setNewTime = (sec) => { clearInterval(tInterval); tInterval = null; tTotal = Math.max(1, Number(sec) || 60); tLeft = tTotal; renderT(); };
+
+      ext.querySelectorAll(".sa-tp").forEach(btn => { btn.onclick = (e) => { e.stopImmediatePropagation(); setNewTime(btn.dataset.sec); }; });
+      document.getElementById("saTApply").onclick = (e) => {
+        e.stopImmediatePropagation();
+        const m = Number(document.getElementById("saTMin")?.value) || 0, s = Number(document.getElementById("saTSec")?.value) || 0;
+        if (m > 0 || s > 0) setNewTime(m * 60 + s);
+      };
+
+      card.querySelectorAll("button").forEach(btn => {
+        const txt = btn.innerText.trim().toLowerCase();
+        if (txt.includes("старт") || txt.includes("пуск") || txt.includes("продолж")) {
+          btn.onclick = (e) => {
+            e.stopImmediatePropagation();
+            if (tInterval) return;
+            if (tLeft <= 0) tLeft = tTotal;
+            tInterval = setInterval(() => {
+              tLeft--; renderT();
+              if (tLeft <= 0) {
+                clearInterval(tInterval); tInterval = null;
+                if (window.triggerRing) window.triggerRing("⏳ ТАЙМЕР ЗАВЕРШЁН", localStorage.getItem("sa_last_sound") || "random", "none", 0, 1);
+                else if (window.SoundPack) window.SoundPack.play("random", Number(localStorage.getItem("sa_vol") || 50), window.db || null);
+              }
+            }, 1000);
+          };
+        } else if (txt.includes("пауза") || txt.includes("стоп")) {
+          btn.onclick = (e) => { e.stopImmediatePropagation(); clearInterval(tInterval); tInterval = null; };
+        } else if (txt.includes("сброс")) {
+          btn.onclick = (e) => { e.stopImmediatePropagation(); setNewTime(tTotal); };
+        }
+      });
+    }
+  }, 250);
+})();

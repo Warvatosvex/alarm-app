@@ -41,7 +41,7 @@ public class MainActivity extends BridgeActivity {
     }
     private void forceFront() {
         if (isAlarmRinging && strictLock) {
-            try { startLockTask(); } catch (Exception ignored) {}
+            
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             if (am != null) am.moveTaskToFront(getTaskId(), 0);
         }
@@ -62,8 +62,8 @@ public class MainActivity extends BridgeActivity {
             isAlarmRinging = s; savedVol = v; strictLock = (s && lock);
             runOnUiThread(() -> {
                 wakeScreen(s);
-                if (s) { setVol(v); if (strictLock) try { startLockTask(); } catch (Exception ignored) {} }
-                else { try { stopLockTask(); } catch (Exception ignored) {} }
+                if (s) { setVol(v); if (strictLock)  }
+                else {  }
             });
         }
         @JavascriptInterface public void setVolume(int v) { savedVol = v; runOnUiThread(() -> setVol(v)); }
