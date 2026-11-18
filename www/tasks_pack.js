@@ -141,3 +141,36 @@ window.buildRandomPoolQueue = function(rounds) {
   const cnt = Math.max(1, Number(rounds) || 1);
   return Array.from({length: cnt}, () => src.at(Math.floor(Math.random() * src.length)));
 };
+window.renderFullTask = function(t, diff, box, onOk, onFail) {
+  if (window.TasksPack && window.TasksPack.render(t, diff, box, onOk, onFail)) return;
+  if (t === "math") {
+    const a = 12 + Math.floor(Math.random()*25*diff), b = 11 + Math.floor(Math.random()*20*diff), ans = a + b;
+    box.innerHTML = `<h3 style="text-align:center;">Решите пример:</h3><div style="font-size:34px;font-weight:900;text-align:center;margin:14px 0;">${a} + ${b} = ?</div>
+      <input type="number" id="mAns" placeholder="Ответ" style="text-align:center;font-size:20px;"><button class="btn" style="width:100%;margin-top:10px;" id="mBtn">Ответить</button>`;
+    document.getElementById("mBtn").onclick = () => Number(document.getElementById("mAns").value) === ans ? onOk() : onFail();
+    return;
+  }
+  if (t === "code") {
+    const len = 4 + diff, code = String(Math.floor(Math.pow(10, len-1) + Math.random()*9*Math.pow(10, len-1)));
+    box.innerHTML = `<h3 style="text-align:center;">Введите код тревоги:</h3><div style="font-size:32px;font-weight:900;letter-spacing:4px;text-align:center;color:#ff2a4b;margin:14px 0;">${code}</div>
+      <input type="number" id="cAns" placeholder="Введите код" style="text-align:center;font-size:20px;"><button class="btn" style="width:100%;margin-top:10px;" id="cBtn">Проверить</button>`;
+    document.getElementById("cBtn").onclick = () => document.getElementById("cAns").value.trim() === code ? onOk() : onFail();
+    return;
+  }
+  if (t === "targets") {
+    let left = 5 + diff * 2;
+    box.innerHTML = `<h3 style="text-align:center;">Раздавите все мишени (<b id="tCnt">${left}</b>):</h3><div id="tArea" style="position:relative;height:200px;background:#10121a;border-radius:14px;overflow:hidden;margin-top:10px;"></div>`;
+    const area = document.getElementById("tArea");
+    const spawn = () => {
+      if (left <= 0) { onOk(); return; }
+      area.innerHTML = `<button type="button" id="hitT" style="position:absolute;left:${10+Math.random()*70}%;top:${10+Math.random()*65}%;width:52px;height:52px;border-radius:50%;background:#ff2a4b;border:none;font-size:24px;">🎯</button>`;
+      document.getElementById("hitT").onclick = () => { left--; document.getElementById("tCnt").innerText = left; spawn(); };
+    };
+    spawn(); return;
+  }
+  const nums = Array.from({length: 6}, () => Math.floor(Math.random()*89)+10), sorted = Array.from(nums).sort((a,b)=>a-b); let idx = 0;
+  box.innerHTML = `<h3 style="text-align:center;">Нажмите по возрастанию:</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;">${nums.map(n=>`<button type="button" class="btn btn-sec" data-n="${n}" style="min-height:48px;font-size:18px;">${n}</button>`).join("")}</div>`;
+  box.querySelectorAll("button").forEach(b => b.onclick = () => {
+    if (Number(b.dataset.n) === sorted[idx]) { b.style.opacity = "0.2"; b.disabled = true; idx++; if (idx === sorted.length) onOk(); } else onFail();
+  });
+};
