@@ -6,12 +6,9 @@ window.SoundPack = (function() {
   );
   const roots = Array.of(220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00);
   const scales = Array.of(
-    Array.of(0, 4, 7, 12, 14, 12, 7, 4),
-    Array.of(0, 2, 4, 7, 9, 12, 9, 7),
-    Array.of(0, 4, 7, 9, 12, 9, 7, 4),
-    Array.of(0, 5, 7, 12, 14, 12, 7, 5),
-    Array.of(0, 3, 7, 10, 12, 10, 7, 3),
-    Array.of(4, 7, 12, 16, 14, 12, 7, 4)
+    Array.of(0, 4, 7, 12, 14, 12, 7, 4), Array.of(0, 2, 4, 7, 9, 12, 9, 7),
+    Array.of(0, 4, 7, 9, 12, 9, 7, 4), Array.of(0, 5, 7, 12, 14, 12, 7, 5),
+    Array.of(0, 3, 7, 10, 12, 10, 7, 3), Array.of(4, 7, 12, 16, 14, 12, 7, 4)
   );
 
   const list = Array.from({length: 120}, (_, i) => {
@@ -58,37 +55,26 @@ window.SoundPack = (function() {
   function playMelody(id) {
     const tr = list.find(x => x.id === id) || list.at(0);
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-    // Фильтр убирает любые резкие высокие частоты, оставляя тёплый и бодрый звук
-    const lpf = ctx.createBiquadFilter();
-    lpf.type = "lowpass";
-    lpf.frequency.value = 850;
-
-    const master = ctx.createGain();
-    master.gain.value = Math.max(0.08, (baseVol / 100) * 0.5);
-    lpf.connect(master);
-    master.connect(ctx.destination);
+    const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 850;
+    const master = ctx.createGain(); master.gain.value = Math.max(0.08, (baseVol / 100) * 0.5);
+    lpf.connect(master); master.connect(ctx.destination);
 
     let step = 0;
     const tick = () => {
       if (!ctx) return;
-      const now = ctx.currentTime;
-      const dur = (tr.tempo / 1000) * 1.3;
+      const now = ctx.currentTime, dur = (tr.tempo / 1000) * 1.3;
       const semi = tr.pattern.at(step % tr.pattern.length);
       const osc = ctx.createOscillator(), g = ctx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(tr.root * Math.pow(1.059463, semi), now);
-
       g.gain.setValueAtTime(0.0001, now);
       g.gain.linearRampToValueAtTime(0.45, now + 0.06);
       g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-
       osc.connect(g); g.connect(lpf);
       osc.start(now); osc.stop(now + dur);
       step++;
     };
-    tick();
-    timer = setInterval(tick, tr.tempo);
+    tick(); timer = setInterval(tick, tr.tempo);
   }
 
   function stop() {
