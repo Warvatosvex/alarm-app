@@ -271,3 +271,35 @@ setInterval(() => {
     }
   });
 }, 200);
+(function() {
+  const safeSt = document.createElement("style");
+  safeSt.innerHTML = `
+    .modal-content, [class*="modal-box"], [class*="modal-card"], .modal > div {
+      width: 92vw !important;
+      max-width: 410px !important;
+      max-height: 88vh !important;
+      overflow-y: auto !important;
+      margin: auto !important;
+      left: auto !important;
+      right: auto !important;
+      transform: none !important;
+    }
+  `;
+  document.head.appendChild(safeSt);
+
+  // Гарантируем закрытие любого модального окна по кнопкам Отмена / Сохранить / Крестик
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    const t = btn.innerText.trim();
+    if (t === "Отмена" || t === "Сохранить" || t === "✕" || t === "×" || t === "X") {
+      const m = btn.closest(".modal, [class*='modal']");
+      if (m) {
+        setTimeout(() => {
+          m.classList.remove("active", "open", "show");
+          if (m.style.display === "flex" || m.style.display === "block") m.style.display = "none";
+        }, 50);
+      }
+    }
+  }, true);
+})();
