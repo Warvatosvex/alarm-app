@@ -167,3 +167,98 @@
   document.addEventListener("change", enforceSnoozeVis);
   setInterval(enforceSnoozeVis, 300);
 })();
+(function() {
+  const injectMelodyUI = () => {
+    // Обновляем старую надпись "7 видов" на "15 видов"
+    document.querySelectorAll("label").forEach(l => {
+      if (l.innerText.includes("7 видов")) l.innerText = "Задание (15 видов + очередь и рандом)";
+    });
+
+    // Находим поле загрузки MP3 внутри модального окна и вставляем перед ним выбор из 100 мелодий + Рандом + Громкость
+    document.querySelectorAll('.modal input[type="file"]').forEach(fileIn => {
+      const wrap = fileIn.parentElement;
+      if (!wrap || wrap.dataset.melodyInjected) return;
+      wrap.dataset.melodyInjected = "1";
+
+      const list100 = window.SoundPack ? window.SoundPack.list.map(m => `<option value="${m.id}">🎵 ${m.name}</option>`).join("") : "";
+      const curV = localStorage.getItem("sa_vol") || "50";
+      const savedMap = JSON.parse(localStorage.getItem("sa_alarm_sounds") || "{}");
+      const timeEl = wrap.closest(".modal")?.querySelector("select, input[type='time']");
+      const curTime = timeEl ? timeEl.value : "default";
+      const initSound = savedMap[curTime] || localStorage.getItem("sa_last_sound") || "random";
+
+      const sec = document.createElement("div");
+      sec.style.cssText = "margin-bottom:14px;";
+      sec.innerHTML = `
+        <label style="display:block;margin-bottom:6px;font-size:13px;color:#8b92a5;">Мелодия будильника (100 приятных звуков)</label>
+        <select class="sa-mel-sel" style="margin-bottom:8px;">
+          <option value="random">🎲 Случайная мелодия (Авто-рандом)</option>
+          ${list100}
+        </select>
+        <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;">
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <button type="button" class="btn btn-sec btn-sm sa-rnd-btn" style="flex:1;min-height:40px;">🎲 Рандом</button>
+            <button type="button" class="btn btn-sec btn-sm sa-prv-btn" style="flex:1;min-height:40px;">▶️ Прослушать</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+            <span>🔊 Громкость: <b class="sa-v-lbl">${curV}%</b></span>
+            <input type="range" class="sa-v-rng" min="10" max="100" value="${curV}" style="flex:1;min-height:28px;padding:0;">
+          </div>
+        </div>`;
+      wrap.before(sec);
+
+      const sel = sec.querySelector(".sa-mel-sel");
+      sel.value = initSound;
+
+      const saveChoice = () => {
+        const tKey = timeEl ? timeEl.value : "default";
+        const map = JSON.parse(localStorage.getItem("sa_alarm_sounds") || "{}");
+        map[tKey] = sel.value;
+        localStorage.setItem("sa_alarm_sounds", JSON.stringify(map));
+        localStorage.setItem("sa_last_sound", sel.value);
+      };
+      sel.onchange = saveChoice;
+
+      sec.querySelector(".sa-rnd-btn").onclick = () => {
+        sel.value = "random";
+        saveChoice();
+        sec.querySelector(".sa-rnd-btn").innerText = "🎲 Выбран: РАНДОМ";
+      };
+
+      let playing = false;
+      sec.querySelector(".sa-prv-btn").onclick = (e) => {
+        playing = !playing;
+        if (playing) {
+          window.SoundPack.play(sel.value, Number(localStorage.getItem("sa_vol") || 50), window.db || null);
+          e.target.innerText = "⏹ Стоп";
+        } else {
+          window.SoundPack.stop();
+          e.target.innerText = "▶️ Прослушать";
+        }
+      };
+
+      sec.querySelector(".sa-v-rng").oninput = (e) => {
+        localStorage.setItem("sa_vol", e.target.value);
+        sec.querySelector(".sa-v-lbl").innerText = e.target.value + "%";
+      };
+
+      // При закрытии или сохранении модалки останавливаем превью и фиксируем выбор
+      wrap.closest(".modal")?.querySelectorAll("button").forEach(b => {
+        if (b.innerText.includes("Сохранить") || b.innerText.includes("Отмена") || b.innerText.includes("✕") || b.innerText.includes("×")) {
+          b.addEventListener("click", () => { saveChoice(); window.SoundPack.stop(); });
+        }
+      });
+    });
+  };
+
+  setInterval(injectMelodyUI, 300);
+
+  // Подставляем выбранную мелодию при срабатывании будильника
+  const prevStart = window.startRingingSound;
+  window.startRingingSound = function(sid) {
+    if (!sid || !String(sid).startsWith("custom_")) {
+      sid = localStorage.getItem("sa_last_sound") || "random";
+    }
+    window.SoundPack.play(sid, Number(localStorage.getItem("sa_vol") || 50), window.db || null);
+  };
+})();
