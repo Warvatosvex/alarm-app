@@ -422,3 +422,73 @@
     };
   }
 })();
+(function purgeSirenAndFixTest() {
+  window.startRingingSound = sid => window.SoundPack && window.SoundPack.play(sid || "random", Number(localStorage.getItem("sa_vol") || 50), window.db || null);
+  window.stopRingingSound = () => window.SoundPack && window.SoundPack.stop();
+  window.playBuiltInSiren = sid => window.startRingingSound(sid);
+
+  window.openTestConfigModal = function() {
+    let m = document.getElementById("saTestCfgModal");
+    if (m) m.remove();
+    m = document.createElement("div");
+    m.id = "saTestCfgModal";
+    m.className = "modal active";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);display:flex;justify-content:center;align-items:center;padding:14px;z-index:20000;box-sizing:border-box;";
+    const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
+    const tasksOpt = `
+      <option value="random_pool">🎲 Рандом из выбранных</option>
+      <option value="custom_seq">🧩 Своя точная очередь</option>
+      <option value="marathon">🔥 Все 15 заданий подряд</option>
+      <option value="none">0. Без заданий</option>
+      <option value="math">1. Математика</option>
+      <option value="code">2. Код тревоги</option>
+      <option value="tiles">3. Плитки памяти</option>
+      <option value="memory">4. Найди пары</option>
+      <option value="targets">5. Раздави мишени</option>
+      <option value="logic">6. Логическая загадка</option>
+      <option value="sort">8. Сортировка чисел</option>
+      <option value="stroop">9. Тест Струпа</option>
+      <option value="seq">10. Продолжи ряд</option>
+      <option value="reverse">11. Слово наоборот</option>
+      <option value="eq">15. Уравнение X</option>
+    `;
+    m.innerHTML = `
+      <div style="width:100%;max-width:360px;background:#161822;border:1px solid #2a2e3d;border-radius:18px;padding:16px;box-sizing:border-box;color:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="font-size:17px;">🧪 Настройка теста</b>
+          <button type="button" id="tCfgClose" class="btn btn-sec btn-sm" style="min-height:34px;padding:0 10px;">✕</button>
+        </div>
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Сколько заданий выполнить (0–15)</label>
+        <input type="number" id="tCfgCount" min="0" max="15" value="2" style="width:100%;margin-bottom:10px;min-height:42px;">
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Какие задания</label>
+        <select id="tCfgTask" style="width:100%;margin-bottom:10px;min-height:42px;">${tasksOpt}</select>
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Музыка для теста (120 звуков, без сирены)</label>
+        <select id="tCfgSound" style="width:100%;margin-bottom:14px;min-height:42px;">
+          <option value="random">🎲 Случайная (без повторов)</option>
+          ${list120}
+        </select>
+        <button type="button" id="tCfgRun" class="btn" style="width:100%;min-height:48px;font-size:16px;">▶️ Запустить тест</button>
+      </div>
+    `;
+    document.body.appendChild(m);
+    document.getElementById("tCfgClose").onclick = () => m.remove();
+    document.getElementById("tCfgRun").onclick = () => {
+      const cnt = Math.min(15, Math.max(0, Number(document.getElementById("tCfgCount").value) || 0));
+      const tType = cnt === 0 ? "none" : document.getElementById("tCfgTask").value;
+      const snd = document.getElementById("tCfgSound").value;
+      m.remove();
+      if (window.triggerRing) {
+        window.triggerRing("🧪 ТЕСТОВЫЙ БУДИЛЬНИК", snd, tType, 2, Math.max(1, cnt));
+      }
+    };
+  };
+
+  window.testAlarm = () => window.openTestConfigModal();
+  document.addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (b && b.innerText && b.innerText.trim().toLowerCase().includes("тест") && !b.closest("#saTestCfgModal")) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      window.openTestConfigModal();
+    }
+  }, true);
+})();
