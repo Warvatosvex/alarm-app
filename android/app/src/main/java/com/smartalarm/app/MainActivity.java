@@ -1,5 +1,6 @@
 package com.smartalarm.app;
-import android.app.*; import android.content.*; import android.media.AudioManager; import android.net.Uri;
+import android.app.*; import android.content.*; import android.graphics.PixelFormat;
+import android.media.AudioManager; import android.net.Uri;
 import android.os.*; import android.provider.Settings; import android.view.*; import android.webkit.JavascriptInterface;
 import com.getcapacitor.BridgeActivity;
 
@@ -9,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     public static int savedVol = 60;
     private Handler lockHandler = new Handler(Looper.getMainLooper());
     private Runnable guardTask;
+    private View edgeShieldTop, edgeShieldBottom;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -23,21 +25,61 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable ignored) {}
     }
 
+    private void toggleEdgeShields(boolean enable) {
+        try {
+            WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+            if (wm == null) return;
+            if (!enable) {
+                if (edgeShieldTop != null) { wm.removeView(edgeShieldTop); edgeShieldTop = null; }
+                if (edgeShieldBottom != null) { wm.removeView(edgeShieldBottom); edgeShieldBottom = null; }
+                return;
+            }
+            if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) return;
+            int type = Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
+            int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
+
+            if (edgeShieldTop == null) {
+                edgeShieldTop = new View(this);
+                edgeShieldTop.setBackgroundColor(0x01000000);
+                WindowManager.LayoutParams pTop = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, 90, type, flags, PixelFormat.TRANSLUCENT);
+                pTop.gravity = Gravity.TOP;
+                wm.addView(edgeShieldTop, pTop);
+            }
+            if (edgeShieldBottom == null) {
+                edgeShieldBottom = new View(this);
+                edgeShieldBottom.setBackgroundColor(0x01000000);
+                WindowManager.LayoutParams pBot = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, 110, type, flags, PixelFormat.TRANSLUCENT);
+                pBot.gravity = Gravity.BOTTOM;
+                wm.addView(edgeShieldBottom, pBot);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private void bringBackNow() {
+        try {
+            if (isAlarmRinging && strictLock) {
+                setVol(savedVol);
+                applyImmersive(true);
+                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                if (am != null) am.moveTaskToFront(getTaskId(), ActivityManager.MOVE_TASK_WITH_HOME);
+                Intent back = new Intent(this, MainActivity.class);
+                back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(back);
+            }
+        } catch (Throwable ignored) {}
+    }
     private void startGuardLoop() {
         guardTask = new Runnable() {
             @Override public void run() {
-                try {
-                    if (isAlarmRinging && strictLock) {
-                        setVol(savedVol);
-                        applyImmersive(true);
-                        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                        if (am != null) am.moveTaskToFront(getTaskId(), 0);
-                    }
-                } catch (Throwable ignored) {}
-                lockHandler.postDelayed(this, 300);
+                if (isAlarmRinging && strictLock) {
+                    setVol(savedVol);
+                    applyImmersive(true);
+                    if (!hasWindowFocus()) bringBackNow();
+                }
+                lockHandler.postDelayed(this, 120);
             }
         };
-        lockHandler.postDelayed(guardTask, 300);
+        lockHandler.postDelayed(guardTask, 120);
     }
 
     @Override protected void onNewIntent(Intent i) {
@@ -98,26 +140,11 @@ public class MainActivity extends BridgeActivity {
         return super.dispatchKeyEvent(e);
     }
 
-    @Override public void onPause() {
-        super.onPause();
-        if (isAlarmRinging && strictLock) {
-            try {
-                Intent back = new Intent(this, MainActivity.class);
-                back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(back);
-            } catch (Throwable ignored) {}
-        }
-    }
-
+    @Override public void onPause() { super.onPause(); bringBackNow(); }
+    @Override public void onStop() { super.onStop(); bringBackNow(); }
     @Override public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (isAlarmRinging && strictLock) {
-            applyImmersive(true);
-            setVol(savedVol);
-            if (!hasFocus) {
-                
-            }
-        }
+        if (isAlarmRinging && strictLock) { applyImmersive(true); if (!hasFocus) bringBackNow(); }
     }
 
     public class Bridge {
@@ -125,7 +152,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface public void setRinging(boolean s, int v) { setRinging(s, v, false); }
         @JavascriptInterface public void setRinging(boolean s, int v, boolean lock) {
             isAlarmRinging = s; savedVol = v; strictLock = (s && lock);
-            runOnUiThread(() -> { if (s) setVol(v); applyImmersive(isAlarmRinging && strictLock); });
+            runOnUiThread(() -> {
+                if (s) setVol(v);
+                applyImmersive(isAlarmRinging && strictLock);
+                toggleEdgeShields(isAlarmRinging && strictLock);
+            });
         }
         @JavascriptInterface public void setVolume(int v) { savedVol = v; runOnUiThread(() -> setVol(v)); }
         @JavascriptInterface public boolean canDrawOverlays() {
