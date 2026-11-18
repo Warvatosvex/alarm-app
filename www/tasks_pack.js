@@ -49,11 +49,22 @@ window.TasksPack = (function() {
       if (window._snzLeft === undefined) window._snzLeft = (rawRep === "inf" || rawRep === "∞") ? -1 : Math.max(0, Number(rawRep) || 0);
       const canSnz = (window._snzLeft === -1 || window._snzLeft > 0);
       const lbl = window._snzLeft === -1 ? "∞" : window._snzLeft;
-      box.innerHTML = `<div style="text-align:center;"><p style="color:#8b92a5;margin-bottom:18px;">Без заданий • Повторов: <b>${lbl}</b> (${mins} мин)</p>
-        <button class="btn" style="width:100%;min-height:56px;font-size:18px;margin-bottom:12px;" id="bOff">✅ Выключить полностью</button>
+      box.innerHTML = `<div style="text-align:center;"><p style="color:#8b92a5;margin-bottom:16px;">Обычный режим • Повторов: <b>${lbl}</b> (${mins} мин)</p>
+        <button class="btn" style="width:100%;min-height:56px;font-size:18px;margin-bottom:10px;" id="bOff">✅ Выключить полностью</button>
+        <button class="btn btn-sec" style="width:100%;min-height:48px;font-size:15px;margin-bottom:10px;" id="bMute">🔇 Пауза звука</button>
         ${canSnz ? `<button class="btn btn-sec" style="width:100%;min-height:52px;font-size:16px;" id="bSnz">💤 Отложить на ${mins} мин</button>` : ""}</div>`;
       document.getElementById("bOff").onclick = () => { window._snzLeft = undefined; onOk(); };
-      if (canSnz) document.getElementById("bSnz").onclick = () => { if (window._snzLeft > 0) window._snzLeft--; setTimeout(() => { if (window.triggerRing) window.triggerRing("💤 ПОВТОР", "random", "none", 0, 1); }, mins * 60000); onOk(); };
+      let muted = false;
+      document.getElementById("bMute").onclick = e => {
+        muted = !muted;
+        if (muted) { window.SoundPack.stop(); e.target.innerText = "🔊 Включить звук"; }
+        else { window.SoundPack.play("random", localStorage.getItem("sa_vol")||50, window.db||null); e.target.innerText = "🔇 Пауза звука"; }
+      };
+      if (canSnz) document.getElementById("bSnz").onclick = () => {
+        if (window._snzLeft > 0) window._snzLeft--;
+        setTimeout(() => { if (window.triggerRing) window.triggerRing("💤 ПОВТОР", "random", "none", 0, 1); }, mins * 60000);
+        onOk();
+      };
       return true;
     }
     if (t === "logic") {
@@ -124,3 +135,9 @@ window.TasksPack = (function() {
   }
   return { ALL_15, render };
 })();
+window.buildRandomPoolQueue = function(rounds) {
+  const pool = JSON.parse(localStorage.getItem("sa_rnd_pool") || "[]");
+  const src = pool.length > 0 ? pool : window.TasksPack.ALL_15;
+  const cnt = Math.max(1, Number(rounds) || 1);
+  return Array.from({length: cnt}, () => src.at(Math.floor(Math.random() * src.length)));
+};

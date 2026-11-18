@@ -17,21 +17,16 @@ public class MainActivity extends BridgeActivity {
         checkFireIntent(getIntent());
     }
     private void wakeScreen() {
-        if (Build.VERSION.SDK_INT >= 27) {
-            setShowWhenLocked(true); setTurnScreenOn(true);
-            KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-            if (km != null) km.requestDismissKeyguard(this, null);
-        }
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+        if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
     }
-    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); wakeScreen(); checkFireIntent(intent); }
-    private void checkFireIntent(Intent intent) {
-        if (intent != null && intent.getBooleanExtra("ALARM_FIRED", false)) {
-            intent.removeExtra("ALARM_FIRED");
+    @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); setIntent(i); wakeScreen(); checkFireIntent(i); }
+    private void checkFireIntent(Intent i) {
+        if (i != null && i.getBooleanExtra("ALARM_FIRED", false)) {
+            i.removeExtra("ALARM_FIRED");
             String payload = getSharedPreferences("sa_prefs", MODE_PRIVATE).getString("next_payload", "{}");
             isAlarmRinging = true;
-            getBridge().getWebView().postDelayed(() ->
-                getBridge().getWebView().evaluateJavascript("if(window.onNativeWake) window.onNativeWake(" + payload + ");", null), 600);
+            getBridge().getWebView().postDelayed(() -> getBridge().getWebView().evaluateJavascript("if(window.onNativeWake) window.onNativeWake(" + payload + ");", null), 500);
         }
     }
     public void setVol(int pct) {
@@ -41,16 +36,26 @@ public class MainActivity extends BridgeActivity {
         am.setStreamVolume(AudioManager.STREAM_ALARM, (int)Math.round(am.getStreamMaxVolume(AudioManager.STREAM_ALARM)*(p/100.0)), 0);
         am.setStreamVolume(AudioManager.STREAM_MUSIC, (int)Math.round(am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)*(p/100.0)), 0);
     }
+    private void forceFront() {
+        if (isAlarmRinging && strictLock) {
+            try { startLockTask(); } catch (Exception ignored) {}
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null) am.moveTaskToFront(getTaskId(), 0);
+            Intent back = new Intent(this, MainActivity.class);
+            back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(back);
+        }
+    }
     @Override public void onBackPressed() { if (!isAlarmRinging || !strictLock) super.onBackPressed(); }
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
         int c = e.getKeyCode();
-        if (isAlarmRinging && strictLock && (c == KeyEvent.KEYCODE_BACK || c == KeyEvent.KEYCODE_VOLUME_DOWN || c == KeyEvent.KEYCODE_HOME)) return true;
+        if (isAlarmRinging && strictLock && (c == KeyEvent.KEYCODE_BACK || c == KeyEvent.KEYCODE_VOLUME_DOWN || c == KeyEvent.KEYCODE_HOME || c == KeyEvent.KEYCODE_APP_SWITCH)) return true;
         return super.dispatchKeyEvent(e);
     }
-    @Override public void onPause() {
-        super.onPause();
-        if (isAlarmRinging && strictLock) { ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE); if (am != null) am.moveTaskToFront(getTaskId(), 0); }
-    }
+    @Override public void onPause() { super.onPause(); forceFront(); }
+    @Override public void onStop() { super.onStop(); forceFront(); }
+    @Override public void onWindowFocusChanged(boolean hasFocus) { super.onWindowFocusChanged(hasFocus); if (!hasFocus) forceFront(); }
+
     public class Bridge {
         @JavascriptInterface public void setRinging(boolean s) { setRinging(s, savedVol, true); }
         @JavascriptInterface public void setRinging(boolean s, int v) { setRinging(s, v, true); }
