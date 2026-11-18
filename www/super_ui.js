@@ -32,7 +32,7 @@
   function syncSelects() {
     document.querySelectorAll("select").forEach(sel => {
       const idLow = (sel.id + " " + sel.className).toLowerCase(), txtLow = sel.innerHTML.toLowerCase();
-      if (!sel.dataset.okSound && !sel.classList.contains("sa-mel-sel") && (idLow.includes("sound") || txtLow.includes("сирен") || txtLow.includes("горн") || txtLow.includes("мелод"))) {
+      if (!sel.dataset.okSound && !sel.classList.contains("sa-mel-sel") && !sel.classList.contains("sa-mel-sel") && (idLow.includes("sound") || txtLow.includes("сирен") || txtLow.includes("горн") || txtLow.includes("мелод"))) {
         sel.dataset.okSound = "1";
         sel.style.cssText += "display:block;width:100%;min-height:48px;font-size:15px;background:#1f222e;color:#fff;border:1px solid #ff2a4b;";
         const co = Array.from(sel.options).filter(o => o.value.startsWith("custom_")).map(o => `<option value="${o.value}">${o.text}</option>`).join("");
@@ -288,6 +288,49 @@ setInterval(() => {
   document.head.appendChild(safeSt);
 
   // Гарантируем закрытие любого модального окна по кнопкам Отмена / Сохранить / Крестик
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    const t = btn.innerText.trim();
+    if (t === "Отмена" || t === "Сохранить" || t === "✕" || t === "×" || t === "X") {
+      const m = btn.closest(".modal, [class*='modal']");
+      if (m) {
+        setTimeout(() => {
+          m.classList.remove("active", "open", "show");
+          if (m.style.display === "flex" || m.style.display === "block") m.style.display = "none";
+        }, 50);
+      }
+    }
+  }, true);
+})();
+(function() {
+  const safeSt = document.createElement("style");
+  safeSt.innerHTML = `
+    .modal-content, [class*="modal-box"], [class*="modal-card"], .modal > div {
+      width: 92vw !important;
+      max-width: 410px !important;
+      max-height: 88vh !important;
+      overflow-y: auto !important;
+      margin: auto !important;
+      left: auto !important;
+      right: auto !important;
+      transform: none !important;
+    }
+  `;
+  document.head.appendChild(safeSt);
+
+  // Удаляем дубликат кнопок под списком мелодий, если он есть
+  setInterval(() => {
+    document.querySelectorAll(".sa-mel-sel").forEach(sel => {
+      const firstBox = sel.nextElementSibling;
+      const secondBox = firstBox ? firstBox.nextElementSibling : null;
+      if (firstBox && secondBox && secondBox.innerHTML.includes("Громкость:")) {
+        secondBox.remove();
+      }
+    });
+  }, 200);
+
+  // Гарантируем закрытие окна по кнопкам Отмена / Сохранить / Крестик
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
