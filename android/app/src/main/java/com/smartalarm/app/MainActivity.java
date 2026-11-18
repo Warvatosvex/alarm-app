@@ -115,7 +115,7 @@ public class MainActivity extends BridgeActivity {
             applyImmersive(true);
             setVol(savedVol);
             if (!hasFocus) {
-                try { sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)); } catch (Throwable ignored) {}
+                
             }
         }
     }
