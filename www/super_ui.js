@@ -32,7 +32,7 @@
   function syncSelects() {
     document.querySelectorAll("select").forEach(sel => {
       const idLow = (sel.id + " " + sel.className).toLowerCase(), txtLow = sel.innerHTML.toLowerCase();
-      if (!sel.dataset.okSound && (idLow.includes("sound") || txtLow.includes("сирен") || txtLow.includes("горн") || txtLow.includes("мелод"))) {
+      if (!sel.dataset.okSound && !sel.classList.contains("sa-mel-sel") && (idLow.includes("sound") || txtLow.includes("сирен") || txtLow.includes("горн") || txtLow.includes("мелод"))) {
         sel.dataset.okSound = "1";
         sel.style.cssText += "display:block;width:100%;min-height:48px;font-size:15px;background:#1f222e;color:#fff;border:1px solid #ff2a4b;";
         const co = Array.from(sel.options).filter(o => o.value.startsWith("custom_")).map(o => `<option value="${o.value}">${o.text}</option>`).join("");
@@ -262,3 +262,12 @@
     window.SoundPack.play(sid, Number(localStorage.getItem("sa_vol") || 50), window.db || null);
   };
 })();
+setInterval(() => {
+  document.querySelectorAll(".sa-mel-sel").forEach(sel => {
+    const firstBox = sel.nextElementSibling;
+    const secondBox = firstBox ? firstBox.nextElementSibling : null;
+    if (firstBox && secondBox && secondBox.innerHTML.includes("Громкость:")) {
+      secondBox.remove();
+    }
+  });
+}, 200);
