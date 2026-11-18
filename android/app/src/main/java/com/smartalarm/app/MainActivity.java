@@ -6,8 +6,9 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     public static boolean isAlarmRinging = false;
     public static boolean strictLock = false;
-    public static int savedVol = 50;
-    private long lastFrontTs = 0;
+    public static int savedVol = 60;
+    private Handler lockHandler = new Handler(Looper.getMainLooper());
+    private Runnable guardTask;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -17,8 +18,26 @@ public class MainActivity extends BridgeActivity {
             if (getBridge() != null && getBridge().getWebView() != null) {
                 getBridge().getWebView().addJavascriptInterface(new Bridge(), "AndroidLock");
             }
+            startGuardLoop();
             checkFireIntent(getIntent());
         } catch (Throwable ignored) {}
+    }
+
+    private void startGuardLoop() {
+        guardTask = new Runnable() {
+            @Override public void run() {
+                try {
+                    if (isAlarmRinging && strictLock) {
+                        setVol(savedVol);
+                        applyImmersive(true);
+                        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                        if (am != null) am.moveTaskToFront(getTaskId(), 0);
+                    }
+                } catch (Throwable ignored) {}
+                lockHandler.postDelayed(this, 300);
+            }
+        };
+        lockHandler.postDelayed(guardTask, 300);
     }
 
     @Override protected void onNewIntent(Intent i) {
@@ -34,7 +53,7 @@ public class MainActivity extends BridgeActivity {
                 if (getBridge() != null && getBridge().getWebView() != null) {
                     getBridge().getWebView().postDelayed(() -> {
                         try { getBridge().getWebView().evaluateJavascript("if(window.onNativeWake) window.onNativeWake(" + payload + ");", null); } catch (Throwable ignored) {}
-                    }, 600);
+                    }, 500);
                 }
             }
         } catch (Throwable ignored) {}
@@ -47,6 +66,7 @@ public class MainActivity extends BridgeActivity {
             int p = Math.max(0, Math.min(100, pct));
             am.setStreamVolume(AudioManager.STREAM_ALARM, (int)Math.round(am.getStreamMaxVolume(AudioManager.STREAM_ALARM)*(p/100.0)), 0);
             am.setStreamVolume(AudioManager.STREAM_MUSIC, (int)Math.round(am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)*(p/100.0)), 0);
+            am.setStreamVolume(AudioManager.STREAM_RING, (int)Math.round(am.getStreamMaxVolume(AudioManager.STREAM_RING)*(p/100.0)), 0);
         } catch (Throwable ignored) {}
     }
 
@@ -63,33 +83,41 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable ignored) {}
     }
 
-    private void forceFront() {
-        try {
-            long now = System.currentTimeMillis();
-            if (isAlarmRinging && strictLock && (now - lastFrontTs > 350)) {
-                lastFrontTs = now; applyImmersive(true);
-                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                if (am != null) am.moveTaskToFront(getTaskId(), 0);
-                Intent back = new Intent(this, MainActivity.class);
-                back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                startActivity(back);
-            }
-        } catch (Throwable ignored) {}
-    }
-
     @Override public void onBackPressed() { if (!isAlarmRinging || !strictLock) super.onBackPressed(); }
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
         try {
             int c = e.getKeyCode();
-            if (isAlarmRinging && strictLock && (c == KeyEvent.KEYCODE_BACK || c == KeyEvent.KEYCODE_VOLUME_DOWN || c == KeyEvent.KEYCODE_HOME || c == KeyEvent.KEYCODE_APP_SWITCH)) return true;
+            if (isAlarmRinging && strictLock && (
+                c == KeyEvent.KEYCODE_BACK || c == KeyEvent.KEYCODE_HOME || c == KeyEvent.KEYCODE_APP_SWITCH ||
+                c == KeyEvent.KEYCODE_VOLUME_DOWN || c == KeyEvent.KEYCODE_VOLUME_UP || c == KeyEvent.KEYCODE_VOLUME_MUTE
+            )) {
+                setVol(savedVol);
+                return true;
+            }
         } catch (Throwable ignored) {}
         return super.dispatchKeyEvent(e);
     }
-    @Override public void onPause() { super.onPause(); forceFront(); }
-    @Override public void onStop() { super.onStop(); forceFront(); }
+
+    @Override public void onPause() {
+        super.onPause();
+        if (isAlarmRinging && strictLock) {
+            try {
+                Intent back = new Intent(this, MainActivity.class);
+                back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(back);
+            } catch (Throwable ignored) {}
+        }
+    }
+
     @Override public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (isAlarmRinging && strictLock) { applyImmersive(true); if (!hasFocus) forceFront(); }
+        if (isAlarmRinging && strictLock) {
+            applyImmersive(true);
+            setVol(savedVol);
+            if (!hasFocus) {
+                try { sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)); } catch (Throwable ignored) {}
+            }
+        }
     }
 
     public class Bridge {

@@ -9,7 +9,7 @@
   const ALL_15_IDS = TASKS_15.map(x => x.at(0));
 
   function drawTask(t, diff, box, onOk, onFail) {
-    diff = Math.max(1, Math.min(3, Number(diff) || 2));
+    diff = Math.max(1, Math.min(20, Number(diff) || 5));
     if (t === "none") {
       box.innerHTML = `<div style="text-align:center;"><p style="color:#8b92a5;margin-bottom:16px;">Обычный режим без заданий</p>
         <button type="button" id="okZeroBtn" class="btn" style="width:100%;min-height:54px;font-size:18px;">✅ Выключить будильник</button></div>`;
@@ -138,9 +138,12 @@
         <input type="number" id="ansIn" placeholder="X =" style="width:100%;text-align:center;font-size:20px;min-height:46px;"><button type="button" id="ansBtn" class="btn" style="width:100%;margin-top:10px;min-height:48px;">Проверить</button>`;
       document.getElementById("ansBtn").onclick = () => Number(document.getElementById("ansIn").value) === x ? onOk() : onFail(); return;
     }
-    const maxN = diff === 1 ? 25 : (diff === 2 ? 65 : 140);
-    const a = 10 + Math.floor(Math.random()*maxN), b = 10 + Math.floor(Math.random()*maxN), ans = a + b;
-    box.innerHTML = `<h3 style="text-align:center;">Решите пример:</h3><div style="font-size:36px;font-weight:900;text-align:center;margin:12px 0;">${a} + ${b} = ?</div>
+    let a, b, extra = 0, expr = "", ans = 0;
+    if (diff <= 4) { a = 4 + diff * 2 + Math.floor(Math.random()*6); b = 3 + Math.floor(Math.random()*7); ans = a * b; expr = `${a} × ${b}`; }
+    else if (diff <= 10) { a = 11 + Math.floor(Math.random()*(6 + diff)); b = 11 + Math.floor(Math.random()*(5 + diff)); ans = a * b; expr = `${a} × ${b}`; }
+    else if (diff <= 15) { a = 14 + Math.floor(Math.random()*(10 + diff)); b = 12 + Math.floor(Math.random()*(8 + diff)); ans = a * b; expr = `${a} × ${b}`; }
+    else { a = 18 + Math.floor(Math.random()*22); b = 15 + Math.floor(Math.random()*20); extra = 10 + Math.floor(Math.random()*40); ans = a * b + extra; expr = `${a} × ${b} + ${extra}`; }
+    box.innerHTML = `<h3 style="text-align:center;">Решите пример (Сложность ${diff}/20):</h3><div style="font-size:34px;font-weight:900;text-align:center;margin:12px 0;">${expr} = ?</div>
       <input type="number" id="ansIn" placeholder="Ответ" style="width:100%;text-align:center;font-size:20px;min-height:46px;"><button type="button" id="ansBtn" class="btn" style="width:100%;margin-top:10px;min-height:48px;">Проверить</button>`;
     document.getElementById("ansBtn").onclick = () => Number(document.getElementById("ansIn").value) === ans ? onOk() : onFail();
   }
@@ -215,7 +218,7 @@
 
   window.launchLockedAlarmScreen = function(title, snd, tType, cnt, diff) {
     const vol = Number(localStorage.getItem("sa_vol") || 60);
-    diff = Math.max(1, Math.min(3, Number(diff) || 2));
+    diff = Math.max(1, Math.min(20, Number(diff) || 5));
     const hasTasks = (tType !== "none" && cnt > 0);
     let queue = [];
     if (!hasTasks) queue = Array.of("none");
@@ -281,7 +284,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
           <div><label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Кол-во заданий (0–15)</label><input type="number" id="tCfgCount" min="0" max="15" value="3" style="width:100%;min-height:42px;"></div>
           <div><label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Сложность</label>
-            <select id="tCfgDiff" style="width:100%;min-height:42px;"><option value="1">Лёгкая</option><option value="2" selected>Средняя</option><option value="3">Сложная</option></select></div>
+            <select id="tCfgDiff" style="width:100%;min-height:42px;"><option value="1">Уровень 1 / 20</option><option value="2">Уровень 2 / 20</option><option value="3">Уровень 3 / 20</option><option value="4">Уровень 4 / 20</option><option value="5">Уровень 5 / 20</option><option value="6">Уровень 6 / 20</option><option value="7">Уровень 7 / 20</option><option value="8" selected>Уровень 8 / 20</option><option value="9">Уровень 9 / 20</option><option value="10">Уровень 10 / 20</option><option value="11">Уровень 11 / 20</option><option value="12">Уровень 12 / 20</option><option value="13">Уровень 13 / 20</option><option value="14">Уровень 14 / 20</option><option value="15">Уровень 15 / 20</option><option value="16">Уровень 16 / 20</option><option value="17">Уровень 17 / 20</option><option value="18">Уровень 18 / 20</option><option value="19">Уровень 19 / 20</option><option value="20">Уровень 20 / 20</option></select></div>
         </div>
         <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Какие задания</label>
         <select id="tCfgTask" style="width:100%;margin-bottom:10px;min-height:42px;">
@@ -377,4 +380,17 @@
       }
     });
   }, 250);
+})();
+(function scale1to20InAlarms() {
+  const opts20 = Array.from({length: 20}, (_, i) => `<option value="${i+1}" ${i+1===8?'selected':''}>Уровень ${i+1} из 20</option>`).join("");
+  setInterval(() => {
+    document.querySelectorAll(".modal select").forEach(sel => {
+      if (sel.dataset.scale20 || sel.id === "tCfgDiff" || sel.classList.contains("sa-mel-sel")) return;
+      const txt = sel.innerHTML.toLowerCase();
+      if (txt.includes("лёгк") || txt.includes("легк") || txt.includes("средн") || txt.includes("сложн")) {
+        sel.dataset.scale20 = "1";
+        sel.innerHTML = opts20;
+      }
+    });
+  }, 300);
 })();
