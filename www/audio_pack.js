@@ -20,42 +20,41 @@ window.SoundPack = (function() {
       name: (i + 1) + ". " + styles.at(sIdx) + " #" + (vIdx + 1),
       root: roots.at((i * 2 + sIdx) % roots.length),
       pattern: pattern,
-      tempo: 340 + ((i * 29) % 140)
+      tempo: 350 + ((i * 29) % 140)
     };
   });
 
   let deck = [];
-  function pickNonRepeatingId() {
+  function pickId() {
     if (deck.length === 0) deck = list.map(m => m.id).sort(() => Math.random() - 0.5);
     return deck.pop();
   }
 
   let ctx = null, timer = null, customEl = null, baseVol = 55, currentId = "mel_1";
-  function onUserActivity() {}
 
   function play(id, volPercent, db, isPreview) {
     stop();
     baseVol = Number(volPercent || localStorage.getItem("sa_vol") || 55);
     const hasTask = !(window.ringQueue && window.ringQueue.at(0) === "none");
     if (!isPreview && window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(true, baseVol, hasTask);
-    if (!id || id === "random" || id.startsWith("calm_")) id = pickNonRepeatingId();
+    if (!id || id === "random" || !id.startsWith("mel_") && !id.startsWith("custom_")) id = pickId();
     currentId = id;
 
-    if (id && id.startsWith("custom_") && db) {
+    if (id.startsWith("custom_") && db) {
       db.transaction("tracks", "readonly").objectStore("tracks").get(id).onsuccess = e => {
         if (e.target.result) {
           customEl = new Audio(URL.createObjectURL(e.target.result.blob));
           customEl.loop = true; customEl.volume = baseVol / 100;
-          customEl.play().catch(() => playMelody("mel_1"));
-        } else playMelody("mel_1");
+          customEl.play().catch(() => playTone("mel_1"));
+        } else playTone("mel_1");
       };
-    } else playMelody(currentId);
+    } else playTone(currentId);
   }
 
-  function playMelody(id) {
+  function playTone(id) {
     const tr = list.find(x => x.id === id) || list.at(0);
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 850;
+    const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 800;
     const master = ctx.createGain(); master.gain.value = Math.max(0.08, (baseVol / 100) * 0.5);
     lpf.connect(master); master.connect(ctx.destination);
 
@@ -68,7 +67,7 @@ window.SoundPack = (function() {
       osc.type = "sine";
       osc.frequency.setValueAtTime(tr.root * Math.pow(1.059463, semi), now);
       g.gain.setValueAtTime(0.0001, now);
-      g.gain.linearRampToValueAtTime(0.45, now + 0.06);
+      g.gain.linearRampToValueAtTime(0.42, now + 0.06);
       g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
       osc.connect(g); g.connect(lpf);
       osc.start(now); osc.stop(now + dur);
@@ -84,5 +83,5 @@ window.SoundPack = (function() {
     if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, baseVol, false);
   }
 
-  return { list, play, stop, onUserActivity, getCurrentId: () => currentId };
+  return { list, play, stop, onUserActivity: () => {}, getCurrentId: () => currentId };
 })();
