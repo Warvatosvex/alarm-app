@@ -163,9 +163,9 @@ public class MainActivity extends BridgeActivity {
             try { return Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(MainActivity.this); } catch (Throwable t) { return true; }
         }
         @JavascriptInterface public void requestOverlayPermission() {
-            try { if (Build.VERSION.SDK_INT >= 23) startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))); } catch (Throwable ignored) {}
+            try { if (Build.VERSION.SDK_INT >= 23) } catch (Throwable ignored) {}
         }
-        @JavascriptInterface public void scheduleNextAlarm(long ms) { scheduleNextAlarmWithData(ms, "{}"); }
+        @JavascriptInterface public void scheduleNextAlarm(long ms) { String cur = getSharedPreferences("sa_prefs", MODE_PRIVATE).getString("next_payload", "{}"); scheduleNextAlarmWithData(ms, cur); }
         @JavascriptInterface public void scheduleNextAlarmWithData(long ms, String json) {
             try {
                 getSharedPreferences("sa_prefs", MODE_PRIVATE).edit().putString("next_payload", json).apply();

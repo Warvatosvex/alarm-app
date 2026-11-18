@@ -394,3 +394,46 @@
     });
   }, 300);
 })();
+(function syncRealWakeAlarms() {
+  function pushNextAlarmToNative() {
+    if (!window.AndroidLock || !window.AndroidLock.scheduleNextAlarmWithData) return;
+    let list = [];
+    try {
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) list = alarms;
+      else list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+    } catch (e) {}
+
+    const now = new Date();
+    let bestTs = 0, bestPayload = null;
+
+    list.filter(a => a && a.enabled).forEach(a => {
+      const parts = String(a.time || "07:00").split(":");
+      const hh = Number(parts[0]) || 0, mm = Number(parts[1]) || 0;
+      const days = Array.isArray(a.days) ? a.days : [];
+      for (let d = 0; d <= 7; d++) {
+        const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, hh, mm, 0, 0);
+        if (cand.getTime() > now.getTime() && (days.length === 0 || days.includes(cand.getDay()))) {
+          if (bestTs === 0 || cand.getTime() < bestTs) {
+            bestTs = cand.getTime();
+            const snd = localStorage.getItem("sa_last_sound") || a.sound || "random";
+            bestPayload = {
+              title: "⏰ БУДИЛЬНИК " + a.time,
+              sound: snd,
+              task: a.task || "math",
+              diff: Number(a.diff) || 8,
+              rounds: Number(a.rounds) || 1
+            };
+          }
+          break;
+        }
+      }
+    });
+
+    if (bestTs > 0 && bestPayload) {
+      window.AndroidLock.scheduleNextAlarmWithData(bestTs, JSON.stringify(bestPayload));
+    }
+  }
+
+  setInterval(pushNextAlarmToNative, 2000);
+  document.addEventListener("click", () => setTimeout(pushNextAlarmToNative, 300));
+})();
