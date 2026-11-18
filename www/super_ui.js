@@ -120,8 +120,44 @@
   const st = document.createElement("style");
   st.innerHTML = "*{touch-action:manipulation!important;-webkit-tap-highlight-color:transparent}button,input,select{cursor:pointer!important;pointer-events:auto!important;position:relative;z-index:20}.modal:not(.active),[style*='display: none'],[style*='display:none']{pointer-events:none!important}.modal.active{z-index:9999!important;pointer-events:auto!important}";
   document.head.appendChild(st);
-  document.addEventListener("touchend", e => {
-    const b = e.target.closest("button");
-    if (b && !b.disabled) { e.preventDefault(); b.click(); }
-  }, {passive: false});
+  
+})();
+(function() {
+  const st = document.createElement("style");
+  st.innerHTML = `
+    * { box-sizing: border-box !important; max-width: 100%; }
+    body, html { overflow-x: hidden !important; width: 100% !important; margin: 0 !important; }
+    .modal, .modal-content, [class*="modal"] {
+      width: 94vw !important; max-width: 420px !important; left: 50% !important;
+      transform: translateX(-50%) !important; margin: 0 !important; padding: 16px !important;
+      overflow-x: hidden !important;
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100% !important; min-width: 0 !important;
+      background: #1f222e !important; color: #ffffff !important;
+      border: 1px solid #32374a !important; border-radius: 10px !important;
+      padding: 10px !important; font-size: 15px !important;
+    }
+    select option { background: #1f222e !important; color: #ffffff !important; }
+  `;
+  document.head.appendChild(st);
+
+  // Строго скрываем блок Интервал/Повторы, если выбрано НЕ "0. Без заданий" (none)
+  const enforceSnoozeVis = () => {
+    document.querySelectorAll("select").forEach(sel => {
+      if (sel.dataset.okTask) {
+        const isZero = (sel.value === "none");
+        let nxt = sel.nextElementSibling;
+        while (nxt) {
+          if (nxt.innerHTML && nxt.innerHTML.includes("Интервал (мин)")) {
+            nxt.style.display = isZero ? "block" : "none";
+            break;
+          }
+          nxt = nxt.nextElementSibling;
+        }
+      }
+    });
+  };
+  document.addEventListener("change", enforceSnoozeVis);
+  setInterval(enforceSnoozeVis, 300);
 })();
