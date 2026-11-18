@@ -333,3 +333,48 @@
     }
   }, true);
 })();
+(function ensureAll15InOriginalAlarm() {
+  const list15 = Array.of(
+    Array.of("math","1. Математика"), Array.of("code","2. Код тревоги"), Array.of("tiles","3. Плитки памяти"),
+    Array.of("memory","4. Найди пары"), Array.of("targets","5. Раздави мишени"), Array.of("logic","6. Логическая загадка"),
+    Array.of("odd","7. Найди лишнее"), Array.of("sort","8. Сортировка чисел"), Array.of("stroop","9. Тест Струпа (цвета)"),
+    Array.of("seq","10. Продолжи ряд"), Array.of("reverse","11. Слово наоборот"), Array.of("emoji","12. Поиск эмодзи"),
+    Array.of("count","13. Быстрый счёт"), Array.of("compare","14. Что больше?"), Array.of("eq","15. Уравнение X")
+  );
+
+  setInterval(() => {
+    document.querySelectorAll(".modal select").forEach(sel => {
+      if (sel.dataset.patched15 || sel.classList.contains("sa-mel-sel")) return;
+      const html = sel.innerHTML.toLowerCase();
+      if (html.includes("math") || html.includes("математ") || html.includes("code") || html.includes("tiles")) {
+        sel.dataset.patched15 = "1";
+        sel.innerHTML = `<option value="none">0. Без заданий</option><option value="custom_seq">🧩 Своя точная очередь</option><option value="random_pool">🎲 Случайные (без повторов)</option><option value="marathon">🔥 Все 15 заданий подряд</option>` + list15.map(x => `<option value="${x.at(0)}">${x.at(1)}</option>`).join("");
+
+        const qBox = document.createElement("div");
+        qBox.style.cssText = "display:none;margin-top:8px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
+        let cQ = JSON.parse(localStorage.getItem("sa_custom_q") || "[]");
+        qBox.innerHTML = `<div style="font-size:12px;color:#8b92a5;margin-bottom:6px;">Нажмите задания по порядку:</div>
+          <div class="q-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px;"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;gap:6px;">
+            <span style="word-break:break-word;">Очередь: <b class="q-out" style="color:#10b981;">пусто</b></span>
+            <div style="display:flex;gap:4px;"><button type="button" class="btn btn-sec btn-sm q-bk" style="min-height:30px;padding:2px 8px;">⌫</button><button type="button" class="btn btn-sec btn-sm q-cl" style="min-height:30px;padding:2px 8px;">Сброс</button></div></div>`;
+        const updQ = () => {
+          localStorage.setItem("sa_custom_q", JSON.stringify(cQ));
+          qBox.querySelector(".q-out").innerText = cQ.length ? cQ.map(id => (list15.find(x => x.at(0) === id) || Array.of(id,id)).at(1)).join(" → ") : "пусто";
+        };
+        updQ();
+        list15.forEach(x => {
+          const b = document.createElement("button"); b.type = "button"; b.className = "btn btn-sec btn-sm";
+          b.style.cssText = "min-height:34px;font-size:11px;text-align:left;padding:4px 6px;"; b.innerText = x.at(1);
+          b.onclick = () => { cQ.push(x.at(0)); updQ(); };
+          qBox.querySelector(".q-grid").appendChild(b);
+        });
+        qBox.querySelector(".q-bk").onclick = () => { cQ.pop(); updQ(); };
+        qBox.querySelector(".q-cl").onclick = () => { cQ = Array.of(); updQ(); };
+        sel.after(qBox);
+        const toggleQ = () => { qBox.style.display = sel.value === "custom_seq" ? "block" : "none"; };
+        sel.addEventListener("change", toggleQ); toggleQ();
+      }
+    });
+  }, 250);
+})();
