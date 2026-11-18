@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://android.com"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="10"
+    android:canRetrieveWindowContent="false" />
