@@ -574,3 +574,65 @@
     }
   }, true);
 })();
+(function fixTestRun() {
+  window.runInstantTestAlarm = function(snd, tType, cnt) {
+    const vol = Number(localStorage.getItem("sa_vol") || 50);
+    const shouldLock = (tType !== "none" && cnt > 0);
+
+    // Запускаем звук и тихую авто-блокировку
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null);
+    if (window.AndroidLock && window.AndroidLock.setRinging) {
+      window.AndroidLock.setRinging(true, vol, shouldLock);
+    }
+
+    // Если глобальный triggerRing доступен — вызываем его
+    if (typeof window.triggerRing === "function") {
+      window.triggerRing("🧪 ТЕСТОВЫЙ БУДИЛЬНИК", snd, tType, 2, Math.max(1, cnt));
+      setTimeout(() => {
+        if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(true, vol, shouldLock);
+      }, 150);
+      return;
+    }
+
+    // Резервный прямой запуск экрана заданий, если triggerRing локальный
+    const ringOverlay = document.getElementById("ringOverlay") || document.getElementById("alarmRingModal") || document.querySelector(".ring-screen");
+    if (ringOverlay) {
+      ringOverlay.style.display = "flex";
+      ringOverlay.classList.add("active");
+    }
+    const box = document.getElementById("taskContainer");
+    if (box && window.TasksPack) {
+      let left = Math.max(1, cnt);
+      const nextStep = () => {
+        left--;
+        if (left <= 0) {
+          if (window.SoundPack) window.SoundPack.stop();
+          if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, vol, false);
+          if (ringOverlay) { ringOverlay.style.display = "none"; ringOverlay.classList.remove("active"); }
+          return;
+        }
+        renderOne();
+      };
+      const renderOne = () => {
+        const q = (tType === "random_pool" && window.buildRandomPoolQueue) ? window.buildRandomPoolQueue(1)[0] : (tType === "marathon" ? "math" : tType);
+        window.TasksPack.render(q, 2, box, nextStep, () => { box.style.outline = "2px solid #ff2a4b"; setTimeout(() => box.style.outline = "none", 300); });
+      };
+      renderOne();
+    }
+  };
+
+  setInterval(() => {
+    const runBtn = document.getElementById("tCfgRun");
+    if (runBtn && !runBtn.dataset.wiredRun) {
+      runBtn.dataset.wiredRun = "1";
+      runBtn.onclick = () => {
+        const cnt = Math.min(15, Math.max(0, Number(document.getElementById("tCfgCount")?.value) || 0));
+        const rawT = document.getElementById("tCfgTask")?.value || "math";
+        const tType = (cnt === 0 || rawT === "none") ? "none" : rawT;
+        const snd = document.getElementById("tCfgSound")?.value || "random";
+        document.getElementById("saTestCfgModal")?.remove();
+        window.runInstantTestAlarm(snd, tType, cnt);
+      };
+    }
+  }, 150);
+})();

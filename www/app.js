@@ -249,3 +249,4 @@
 
   render();
 })();
+window.triggerRing = typeof triggerRing !== 'undefined' ? triggerRing : window.triggerRing;
