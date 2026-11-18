@@ -116,3 +116,12 @@
   window.stopRingingSound = () => window.SoundPack.stop();
   window.onNativeWake = function(d) { d = d || {}; if (window.triggerRing) window.triggerRing(d.title || "⏰ ПОДЪЁМ!", d.sound || "random", d.task || "math", d.diff || 2, d.rounds || 1); if (window.syncNativeAlarms) window.syncNativeAlarms(); };
 })();
+(function() {
+  const st = document.createElement("style");
+  st.innerHTML = "*{touch-action:manipulation!important;-webkit-tap-highlight-color:transparent}button,input,select{cursor:pointer!important;pointer-events:auto!important;position:relative;z-index:20}.modal:not(.active),[style*='display: none'],[style*='display:none']{pointer-events:none!important}.modal.active{z-index:9999!important;pointer-events:auto!important}";
+  document.head.appendChild(st);
+  document.addEventListener("touchend", e => {
+    const b = e.target.closest("button");
+    if (b && !b.disabled) { e.preventDefault(); b.click(); }
+  }, {passive: false});
+})();
