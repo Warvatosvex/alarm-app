@@ -140,3 +140,58 @@
   window.stopRingingSound = () => { window.SoundPack.stop(); if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, 50, false); };
   window.onNativeWake = function(d) { d = d || {}; if (window.triggerRing) window.triggerRing(d.title || "⏰ ПОДЪЁМ!", d.sound || "random", d.task || "math", d.diff || 2, d.rounds || 1); if (window.syncNativeAlarms) window.syncNativeAlarms(); };
 })();
+(function fixTimerNow() {
+  const inject = () => {
+    if (document.getElementById("cleanTimerExt")) return;
+    const targetBtn = Array.from(document.querySelectorAll("button")).find(b => b.innerText.trim() === "5 мин");
+    if (!targetBtn) return;
+    const btnRow = targetBtn.parentElement;
+    const card = btnRow.parentElement;
+
+    card.querySelectorAll("div,span,h1,h2").forEach(el => {
+      if (/^\d{2}:\d{2}:\d{2}$/.test(el.innerText.trim())) {
+        el.style.cssText += "font-size:62px!important;letter-spacing:2px!important;margin:18px 0!important;font-weight:800!important;";
+      }
+    });
+
+    const ext = document.createElement("div");
+    ext.id = "cleanTimerExt";
+    ext.style.cssText = "margin:10px 0 14px;";
+    ext.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+        ${Array.of(Array.of(30,"30 сек"),Array.of(900,"15 мин"),Array.of(1500,"25 мин"),Array.of(1800,"30 мин"),Array.of(2700,"45 мин"),Array.of(3600,"1 час"),Array.of(7200,"2 часа"),Array.of(10800,"3 часа")).map(x=>`<button type="button" class="btn btn-sec tp-b" data-s="${x.at(0)}" style="min-height:42px;font-size:13px;font-weight:600;">${x.at(1)}</button>`).join("")}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;align-items:center;">
+        <input type="number" id="cTH" min="0" max="99" placeholder="Часы" style="text-align:center;font-size:16px;min-height:46px;">
+        <input type="number" id="cTM" min="0" max="59" placeholder="Мин" style="text-align:center;font-size:16px;min-height:46px;">
+        <input type="number" id="cTS" min="0" max="59" placeholder="Сек" style="text-align:center;font-size:16px;min-height:46px;">
+        <button type="button" id="cTSet" class="btn" style="min-height:46px;padding:0 16px;">ОК</button>
+      </div>`;
+    btnRow.after(ext);
+
+    const setSeconds = (sec) => {
+      sec = Math.max(1, Number(sec) || 0);
+      const hh = String(Math.floor(sec/3600)).padStart(2,"0");
+      const mm = String(Math.floor((sec%3600)/60)).padStart(2,"0");
+      const ss = String(sec%60).padStart(2,"0");
+      card.querySelectorAll("div,span,h1,h2").forEach(n => {
+        if (/^\d{2}:\d{2}:\d{2}$/.test(n.innerText.trim())) n.innerText = `${hh}:${mm}:${ss}`;
+      });
+      if (typeof timerSeconds !== "undefined") timerSeconds = sec;
+      if (typeof timerRemaining !== "undefined") timerRemaining = sec;
+      if (typeof timerLeft !== "undefined") timerLeft = sec;
+      if (typeof timeLeft !== "undefined") timeLeft = sec;
+      window._forcedTimerSec = sec;
+    };
+
+    ext.querySelectorAll(".tp-b").forEach(b => b.onclick = () => setSeconds(b.dataset.s));
+    document.getElementById("cTSet").onclick = () => {
+      const h = Number(document.getElementById("cTH").value) || 0;
+      const m = Number(document.getElementById("cTM").value) || 0;
+      const s = Number(document.getElementById("cTS").value) || 0;
+      setSeconds(h*3600 + m*60 + s);
+    };
+  };
+
+  setInterval(inject, 300);
+})();
