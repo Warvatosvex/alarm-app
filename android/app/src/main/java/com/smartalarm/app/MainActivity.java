@@ -12,7 +12,8 @@ public class MainActivity extends BridgeActivity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         try {
-            wakeScreen();
+            if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
             if (getBridge() != null && getBridge().getWebView() != null) {
                 getBridge().getWebView().addJavascriptInterface(new Bridge(), "AndroidLock");
             }
@@ -20,16 +21,9 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable ignored) {}
     }
 
-    private void wakeScreen() {
-        try {
-            if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-        } catch (Throwable ignored) {}
-    }
-
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
-        try { setIntent(i); wakeScreen(); checkFireIntent(i); } catch (Throwable ignored) {}
+        try { setIntent(i); checkFireIntent(i); } catch (Throwable ignored) {}
     }
 
     private void checkFireIntent(Intent i) {
@@ -56,13 +50,29 @@ public class MainActivity extends BridgeActivity {
         } catch (Throwable ignored) {}
     }
 
+    private void applyImmersive(boolean lock) {
+        try {
+            View decor = getWindow().getDecorView();
+            if (lock) {
+                decor.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                );
+            } else { decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE); }
+        } catch (Throwable ignored) {}
+    }
+
     private void forceFront() {
         try {
             long now = System.currentTimeMillis();
-            if (isAlarmRinging && strictLock && (now - lastFrontTs > 600)) {
-                lastFrontTs = now;
+            if (isAlarmRinging && strictLock && (now - lastFrontTs > 350)) {
+                lastFrontTs = now; applyImmersive(true);
                 ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
                 if (am != null) am.moveTaskToFront(getTaskId(), 0);
+                Intent back = new Intent(this, MainActivity.class);
+                back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(back);
             }
         } catch (Throwable ignored) {}
     }
@@ -76,14 +86,18 @@ public class MainActivity extends BridgeActivity {
         return super.dispatchKeyEvent(e);
     }
     @Override public void onPause() { super.onPause(); forceFront(); }
-    @Override public void onWindowFocusChanged(boolean hasFocus) { super.onWindowFocusChanged(hasFocus); if (!hasFocus) forceFront(); }
+    @Override public void onStop() { super.onStop(); forceFront(); }
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (isAlarmRinging && strictLock) { applyImmersive(true); if (!hasFocus) forceFront(); }
+    }
 
     public class Bridge {
         @JavascriptInterface public void setRinging(boolean s) { setRinging(s, savedVol, false); }
         @JavascriptInterface public void setRinging(boolean s, int v) { setRinging(s, v, false); }
         @JavascriptInterface public void setRinging(boolean s, int v, boolean lock) {
-            isAlarmRinging = s; savedVol = v; strictLock = lock;
-            runOnUiThread(() -> { if (s) setVol(v); });
+            isAlarmRinging = s; savedVol = v; strictLock = (s && lock);
+            runOnUiThread(() -> { if (s) setVol(v); applyImmersive(isAlarmRinging && strictLock); });
         }
         @JavascriptInterface public void setVolume(int v) { savedVol = v; runOnUiThread(() -> setVol(v)); }
         @JavascriptInterface public boolean canDrawOverlays() {

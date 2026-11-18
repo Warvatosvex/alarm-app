@@ -331,3 +331,94 @@
     }
   }, 250);
 })();
+(function customTestAndLiveAudio() {
+  setInterval(() => {
+    const tBox = document.getElementById("taskContainer");
+    if (tBox && tBox.offsetParent !== null && !document.getElementById("liveRingAudioBar")) {
+      const bar = document.createElement("div");
+      bar.id = "liveRingAudioBar";
+      bar.style.cssText = "margin-bottom:12px;padding:8px 10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;display:flex;gap:6px;align-items:center;";
+      const list120 = window.SoundPack ? window.SoundPack.list.map(m => `<option value="${m.id}">🎵 ${m.name}</option>`).join("") : "";
+      bar.innerHTML = `
+        <select id="liveRingSel" style="flex:1;min-height:38px;font-size:13px;padding:4px 8px;">
+          <option value="random">🎲 Случайный звук</option>
+          ${list120}
+        </select>
+        <button type="button" id="liveRingNext" class="btn btn-sec btn-sm" style="min-height:38px;padding:0 10px;white-space:nowrap;">🔀 Сменить</button>
+      `;
+      tBox.before(bar);
+      const sel = document.getElementById("liveRingSel");
+      sel.value = window.SoundPack ? window.SoundPack.getCurrentId() : "random";
+      sel.onchange = () => {
+        if (window.SoundPack) window.SoundPack.play(sel.value, Number(localStorage.getItem("sa_vol") || 50), window.db || null);
+      };
+      document.getElementById("liveRingNext").onclick = () => {
+        if (window.SoundPack) {
+          window.SoundPack.play("random", Number(localStorage.getItem("sa_vol") || 50), window.db || null);
+          sel.value = window.SoundPack.getCurrentId();
+        }
+      };
+    }
+
+    document.querySelectorAll("button").forEach(btn => {
+      if (btn.dataset.customTestHooked) return;
+      const txt = btn.innerText.trim().toLowerCase();
+      if (txt === "тест" || txt.includes("тест будильник") || txt.includes("тест тревог")) {
+        btn.dataset.customTestHooked = "1";
+        btn.onclick = (e) => {
+          e.preventDefault(); e.stopImmediatePropagation();
+          openTestConfigModal();
+        };
+      }
+    });
+  }, 300);
+
+  function openTestConfigModal() {
+    let m = document.getElementById("saTestCfgModal");
+    if (m) m.remove();
+    m = document.createElement("div");
+    m.id = "saTestCfgModal";
+    m.className = "modal active";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;padding:14px;z-index:10000;box-sizing:border-box;";
+    const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
+    const tasksOpt = `
+      <option value="random_pool">🎲 Рандом из выбранных</option>
+      <option value="custom_seq">🧩 Своя точная очередь</option>
+      <option value="marathon">🔥 Все 15 заданий подряд</option>
+      <option value="none">0. Без заданий</option>
+      <option value="math">1. Математика</option>
+      <option value="logic">6. Логическая загадка</option>
+      <option value="stroop">9. Тест Струпа</option>
+      <option value="eq">15. Уравнение X</option>
+    `;
+    m.innerHTML = `
+      <div style="width:100%;max-width:360px;background:#161822;border:1px solid #2a2e3d;border-radius:18px;padding:16px;box-sizing:border-box;color:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="font-size:17px;">🧪 Настройка теста</b>
+          <button type="button" id="tCfgClose" class="btn btn-sec btn-sm" style="min-height:34px;padding:0 10px;">✕</button>
+        </div>
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Сколько заданий выполнить (0–15)</label>
+        <input type="number" id="tCfgCount" min="0" max="15" value="2" style="width:100%;margin-bottom:10px;min-height:42px;">
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Какие задания</label>
+        <select id="tCfgTask" style="width:100%;margin-bottom:10px;min-height:42px;">${tasksOpt}</select>
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Музыка для теста (120 звуков)</label>
+        <select id="tCfgSound" style="width:100%;margin-bottom:14px;min-height:42px;">
+          <option value="random">🎲 Случайная (без повторов)</option>
+          ${list120}
+        </select>
+        <button type="button" id="tCfgRun" class="btn" style="width:100%;min-height:48px;font-size:16px;">▶️ Запустить тест</button>
+      </div>
+    `;
+    document.body.appendChild(m);
+    document.getElementById("tCfgClose").onclick = () => m.remove();
+    document.getElementById("tCfgRun").onclick = () => {
+      const cnt = Math.min(15, Math.max(0, Number(document.getElementById("tCfgCount").value) || 0));
+      const tType = cnt === 0 ? "none" : document.getElementById("tCfgTask").value;
+      const snd = document.getElementById("tCfgSound").value;
+      m.remove();
+      if (window.triggerRing) {
+        window.triggerRing("🧪 ТЕСТОВЫЙ БУДИЛЬНИК", snd, tType, 2, Math.max(1, cnt));
+      }
+    };
+  }
+})();
