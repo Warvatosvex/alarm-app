@@ -20,7 +20,8 @@ window.SoundPack = (function() {
   function play(id, volPercent, db) {
     stop();
     baseVol = Number(volPercent || localStorage.getItem("sa_vol") || 50);
-    if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(true, baseVol);
+    const hasTask = !(window.ringQueue && window.ringQueue.at(0) === "none");
+    if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(true, baseVol, hasTask);
     if (id === "random" || localStorage.getItem("sa_global_random") === "1") id = list.at(Math.floor(Math.random() * list.length)).id;
     if (id && id.startsWith("custom_") && db) {
       db.transaction("tracks", "readonly").objectStore("tracks").get(id).onsuccess = e => {
@@ -56,7 +57,7 @@ window.SoundPack = (function() {
     clearInterval(timer); clearTimeout(idleTimer); timer = null;
     if (ctx) { ctx.close().catch(()=>{}); ctx = null; }
     if (customEl) { customEl.pause(); customEl = null; }
-    if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, baseVol);
+    if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, baseVol, false);
   }
   return { list, play, stop, onUserActivity };
 })();

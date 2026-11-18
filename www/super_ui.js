@@ -8,7 +8,7 @@
         s.innerHTML = `<option value="random">🎲 Случайная (из 100)</option>` + co + window.SoundPack.list.map(m => `<option value="${m.id}">🎵 ${m.name}</option>`).join("");
       }
       if (s.innerHTML.includes("Математика") || s.id.toLowerCase().includes("task"))
-        s.innerHTML = `<option value="none">0. Без заданий (Кнопка + Повторы/∞)</option><option value="custom_seq">🧩 Своя очередь</option><option value="marathon">🔥 Все 15 подряд</option>` + tL.map(x=>`<option value="${x.at(0)}">${x.at(1)}</option>`).join("");
+        s.innerHTML = `<option value="none">0. Без заданий (Обычный будильник)</option><option value="custom_seq">🧩 Своя очередь</option><option value="marathon">🔥 Все 15 подряд</option>` + tL.map(x=>`<option value="${x.at(0)}">${x.at(1)}</option>`).join("");
     });
   };
   fill();
@@ -60,5 +60,27 @@
       if (tBox && window.TasksPack.render(t, typeof ringDiff!=="undefined"?ringDiff:2, tBox, window.taskStepSuccess, window.taskStepFail)) return;
     }
     if (origR) origR();
+  };
+  const origSync = window.syncNativeAlarms;
+  window.syncNativeAlarms = function() {
+    if (origSync) origSync();
+    if (!window.AndroidLock || !window.AndroidLock.scheduleNextAlarmWithData) return;
+    const now = new Date(); let bestTs = 0, bestP = null;
+    (window.alarms || []).filter(a => a.enabled).forEach(a => {
+      const [hh, mm] = a.time.split(":").map(Number);
+      for (let d = 0; d <= 7; d++) {
+        const c = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, hh, mm, 0, 0);
+        if (c > now && (a.days.length === 0 || a.days.includes(c.getDay()))) {
+          if (bestTs === 0 || c.getTime() < bestTs) { bestTs = c.getTime(); bestP = { title: "⏰ БУДИЛЬНИК " + a.time, sound: a.sound, task: a.task, diff: a.diff, rounds: a.rounds }; }
+          break;
+        }
+      }
+    });
+    if (bestTs > 0 && bestP) window.AndroidLock.scheduleNextAlarmWithData(bestTs, JSON.stringify(bestP));
+  };
+  window.onNativeWake = function(d) {
+    d = d || {};
+    if (window.triggerRing) window.triggerRing(d.title || "⏰ ПОДЪЁМ!", d.sound || "random", d.task || "math", d.diff || 2, d.rounds || 1);
+    if (window.syncNativeAlarms) window.syncNativeAlarms();
   };
 })();
