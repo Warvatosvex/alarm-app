@@ -467,3 +467,105 @@
     }
   }, true);
 })();
+(function fixZeroTaskAlarmAndButtons() {
+  // 1. Гарантируем, что экран тревоги с 0 заданий ВСЕГДА рисует крупную кнопку "Выключить будильник"
+  const origLaunch = window.launchLockedAlarmScreen;
+  window.launchLockedAlarmScreen = function(title, snd, tType, cnt, diff) {
+    const isZero = (!tType || tType === "none" || Number(cnt) === 0);
+    if (origLaunch) origLaunch(title, snd, isZero ? "none" : tType, isZero ? 0 : cnt, diff);
+
+    setTimeout(() => {
+      const box = document.getElementById("saLockTaskBox");
+      if (box && isZero) {
+        const mins = Math.max(1, Number(localStorage.getItem("sa_snooze_min") || 5));
+        box.innerHTML = `
+          <div style="text-align:center;padding:8px 0;">
+            <div style="font-size:15px;color:#8b92a5;margin-bottom:18px;">Обычный будильник (без заданий)</div>
+            <button type="button" id="saZeroStopBtn" class="btn" style="width:100%;min-height:62px;font-size:20px;font-weight:900;background:#10b981;color:#fff;border:none;border-radius:14px;margin-bottom:12px;">
+              ✅ ВЫКЛЮЧИТЬ БУДИЛЬНИК
+            </button>
+            <button type="button" id="saZeroSnoozeBtn" class="btn btn-sec" style="width:100%;min-height:50px;font-size:16px;border-radius:14px;">
+              💤 Отложить на ${mins} мин
+            </button>
+          </div>
+        `;
+        document.getElementById("saZeroStopBtn").onclick = () => {
+          if (window.SoundPack) window.SoundPack.stop();
+          if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, 50, false);
+          document.getElementById("saFullLockScreen")?.remove();
+        };
+        document.getElementById("saZeroSnoozeBtn").onclick = () => {
+          if (window.SoundPack) window.SoundPack.stop();
+          if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, 50, false);
+          document.getElementById("saFullLockScreen")?.remove();
+          setTimeout(() => {
+            window.launchLockedAlarmScreen("💤 ПОВТОР БУДИЛЬНИКА", snd, "none", 0, diff);
+          }, mins * 60000);
+        };
+      }
+    }, 60);
+  };
+
+  // 2. Перехватываем сохранение будильника с "0. Без заданий", чтобы приложение не сбрасывало его
+  document.addEventListener("click", function(e) {
+    const btn = e.target.closest("button");
+    if (!btn || !btn.innerText || !btn.innerText.includes("Сохранить")) return;
+    const modal = btn.closest(".modal");
+    if (!modal) return;
+
+    const taskSel = Array.from(modal.querySelectorAll("select")).find(s => s.dataset.patched15 || s.value === "none");
+    const timeIn = modal.querySelector('input[type="time"], select');
+    if (taskSel && timeIn && timeIn.value) {
+      const zeroMap = JSON.parse(localStorage.getItem("sa_zero_alarms") || "{}");
+      if (taskSel.value === "none") zeroMap[timeIn.value] = true;
+      else delete zeroMap[timeIn.value];
+      localStorage.setItem("sa_zero_alarms", JSON.stringify(zeroMap));
+    }
+    setTimeout(() => { if (window.pushExactAlarmSchedule) window.pushExactAlarmSchedule(); }, 250);
+  }, true);
+
+  // 3. Обновляем планировщик расписания, чтобы он 100% подхватывал будильники с 0 заданий
+  const prevPush = window.pushExactAlarmSchedule;
+  window.pushExactAlarmSchedule = function() {
+    if (!window.AndroidLock || !window.AndroidLock.scheduleNextAlarmWithData) return;
+    let list = [];
+    try {
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) list = alarms;
+      else list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+    } catch (e) {}
+
+    const sndMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+    const zeroMap = JSON.parse(localStorage.getItem("sa_zero_alarms") || "{}");
+    const now = new Date();
+    let bestTs = 0, bestPayload = null;
+
+    list.filter(a => a && a.enabled).forEach(a => {
+      const parts = String(a.time || "07:00").split(":");
+      const hh = Number(parts.at(0)) || 0, mm = Number(parts.at(1)) || 0;
+      const days = Array.isArray(a.days) ? a.days : [];
+      for (let d = 0; d <= 7; d++) {
+        const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, hh, mm, 0, 0);
+        if (cand.getTime() > now.getTime() && (days.length === 0 || days.includes(cand.getDay()))) {
+          if (bestTs === 0 || cand.getTime() < bestTs) {
+            bestTs = cand.getTime();
+            const isZ = zeroMap[a.time] || a.task === "none";
+            bestPayload = {
+              title: "⏰ БУДИЛЬНИК " + a.time,
+              sound: sndMap[a.time] || a.sound || "random",
+              task: isZ ? "none" : (a.task || "math"),
+              diff: Number(a.diff) || 8,
+              rounds: isZ ? 0 : (Number(a.rounds) || 1)
+            };
+          }
+          break;
+        }
+      }
+    });
+
+    if (bestTs > 0 && bestPayload) {
+      window.AndroidLock.scheduleNextAlarmWithData(bestTs, JSON.stringify(bestPayload));
+    } else if (prevPush) {
+      prevPush();
+    }
+  };
+})();
