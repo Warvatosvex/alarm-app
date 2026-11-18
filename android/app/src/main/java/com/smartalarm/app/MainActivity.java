@@ -62,7 +62,7 @@ public class MainActivity extends BridgeActivity {
             isAlarmRinging = s; savedVol = v; strictLock = (s && lock);
             runOnUiThread(() -> {
                 wakeScreen(s);
-                if (s) { setVol(v); if (strictLock)  }
+                if (s) { setVol(v); }
                 else {  }
             });
         }
