@@ -437,3 +437,33 @@
   setInterval(pushNextAlarmToNative, 2000);
   document.addEventListener("click", () => setTimeout(pushNextAlarmToNative, 300));
 })();
+(function strictSelectedSoundAndWake() {
+  // Намертво блокируем любые вызовы старой сирены из app.js
+  window.playBuiltInSiren = function() {};
+  window.startRingingSound = function(sid) {
+    const chosen = (sid && sid.startsWith("mel_")) ? sid : (localStorage.getItem("sa_last_sound") || "random");
+    if (window.SoundPack) window.SoundPack.play(chosen, Number(localStorage.getItem("sa_vol") || 60), window.db || null, false);
+  };
+
+  // При сохранении будильника жёстко фиксируем выбранную мелодию за этим временем
+  document.addEventListener("click", function(e) {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.innerText && btn.innerText.includes("Сохранить")) {
+      const modal = btn.closest(".modal");
+      if (modal) {
+        const melSel = modal.querySelector(".sa-mel-sel");
+        const timeIn = modal.querySelector('input[type="time"], select');
+        if (melSel) {
+          localStorage.setItem("sa_last_sound", melSel.value);
+          if (timeIn && timeIn.value) {
+            const map = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+            map[timeIn.value] = melSel.value;
+            localStorage.setItem("sa_per_alarm_snd", JSON.stringify(map));
+          }
+        }
+        if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 200);
+      }
+    }
+  }, true);
+})();

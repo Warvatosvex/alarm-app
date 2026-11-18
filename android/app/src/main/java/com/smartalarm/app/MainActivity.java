@@ -15,7 +15,7 @@ public class MainActivity extends BridgeActivity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         try {
-            if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
+            if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE); if (km != null) km.requestDismissKeyguard(this, null); }
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
             if (getBridge() != null && getBridge().getWebView() != null) {
                 getBridge().getWebView().addJavascriptInterface(new Bridge(), "AndroidLock");
