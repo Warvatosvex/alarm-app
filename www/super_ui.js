@@ -127,10 +127,16 @@
   st.innerHTML = `
     * { box-sizing: border-box !important; max-width: 100%; }
     body, html { overflow-x: hidden !important; width: 100% !important; margin: 0 !important; }
-    .modal, .modal-content, [class*="modal"] {
-      width: 94vw !important; max-width: 420px !important; left: 50% !important;
-      transform: translateX(-50%) !important; margin: 0 !important; padding: 16px !important;
-      overflow-x: hidden !important;
+    .modal {
+      position: fixed !important; inset: 0 !important; width: 100vw !important; max-width: 100vw !important;
+      left: 0 !important; top: 0 !important; transform: none !important;
+      display: flex !important; justify-content: center !important; align-items: center !important;
+      padding: 12px !important;
+    }
+    .modal > div, .modal-content {
+      position: relative !important; left: auto !important; transform: none !important;
+      width: 100% !important; max-width: 420px !important; max-height: 90vh !important;
+      overflow-y: auto !important; overflow-x: hidden !important; margin: 0 auto !important;
     }
     input[type="text"], input[type="number"], select {
       width: 100% !important; min-width: 0 !important;
