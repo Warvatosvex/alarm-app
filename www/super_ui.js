@@ -1,7 +1,4 @@
-(function cleanMasterUI() {
-  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", cleanMasterUI); return; }
-
-  // 1. Встраиваем в настройки будильника выбор из 120 мелодий, рандом и громкость
+(function masterAlarmEngine() {
   setInterval(() => {
     document.querySelectorAll('.modal input[type="file"]').forEach(fileIn => {
       const wrap = fileIn.parentElement;
@@ -13,7 +10,7 @@
       const box = document.createElement("div");
       box.style.cssText = "margin-bottom:12px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
       box.innerHTML = `
-        <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;">Мелодия будильника (120 звуков, без сирены)</label>
+        <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;">Мелодия (120 звуков, без сирены)</label>
         <select class="sa-mel-sel" style="width:100%;margin-bottom:8px;">
           <option value="random">🎲 Случайная (без повторов)</option>
           ${list120}
@@ -34,23 +31,85 @@
       let pl = false;
       box.querySelector(".m-prv").onclick = e => {
         pl = !pl;
-        if (pl) { window.SoundPack.play(sel.value, Number(localStorage.getItem("sa_vol")||60), window.db||null, true); e.target.innerText = "⏹ Стоп"; }
-        else { window.SoundPack.stop(); e.target.innerText = "▶️ Слушать"; }
+        if (pl) { if(window.SoundPack) window.SoundPack.play(sel.value, Number(localStorage.getItem("sa_vol")||60), window.db||null, true); e.target.innerText = "⏹ Стоп"; }
+        else { if(window.SoundPack) window.SoundPack.stop(); e.target.innerText = "▶️ Слушать"; }
       };
       box.querySelector(".m-vr").oninput = e => { localStorage.setItem("sa_vol", e.target.value); box.querySelector(".m-vl").innerText = e.target.value + "%"; };
     });
   }, 300);
 
-  // 2. Полноэкранный экран тревоги с заданиями и блокировкой выхода
+  function drawTask(t, box, onOk, onFail) {
+    if (t === "none") {
+      box.innerHTML = `<div style="text-align:center;"><p style="color:#8b92a5;margin-bottom:16px;">Обычный режим без заданий</p>
+        <button type="button" id="okZeroBtn" class="btn" style="width:100%;min-height:54px;font-size:18px;">✅ Выключить будильник</button></div>`;
+      document.getElementById("okZeroBtn").onclick = onOk;
+      return;
+    }
+    if (t === "code") {
+      const code = String(10000 + Math.floor(Math.random() * 89999));
+      box.innerHTML = `<h3 style="text-align:center;margin:0 0 8px;">Введите код тревоги:</h3>
+        <div style="font-size:34px;font-weight:900;letter-spacing:4px;text-align:center;color:#ff2a4b;margin:12px 0;">${code}</div>
+        <input type="number" id="ansIn" placeholder="Введите цифры" style="width:100%;text-align:center;font-size:20px;min-height:46px;">
+        <button type="button" id="ansBtn" class="btn" style="width:100%;margin-top:10px;min-height:48px;">Проверить</button>`;
+      document.getElementById("ansBtn").onclick = () => document.getElementById("ansIn").value.trim() === code ? onOk() : onFail();
+      return;
+    }
+    if (t === "targets") {
+      let left = 6;
+      box.innerHTML = `<h3 style="text-align:center;margin:0 0 8px;">Нажмите на все мишени (<b id="tgLeft">${left}</b>):</h3>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;">
+        ${Array.from({length:6},()=>`<button type="button" class="btn btn-sec tg-btn" style="font-size:26px;min-height:58px;">🎯</button>`).join("")}</div>`;
+      box.querySelectorAll(".tg-btn").forEach(b => b.onclick = () => {
+        if (b.disabled) return;
+        b.disabled = true; b.innerText = "✅"; b.style.opacity = "0.3"; left--;
+        document.getElementById("tgLeft").innerText = left;
+        if (left <= 0) onOk();
+      });
+      return;
+    }
+    if (t === "stroop") {
+      const cs = [{n:"КРАСНЫЙ",c:"#ff2a4b"},{n:"СИНИЙ",c:"#3b82f6"},{n:"ЗЕЛЁНЫЙ",c:"#10b981"},{n:"ЖЁЛТЫЙ",c:"#f59e0b"}];
+      const w = cs[Math.floor(Math.random()*4)], ink = cs[Math.floor(Math.random()*4)];
+      box.innerHTML = `<h3 style="text-align:center;margin:0 0 8px;">Нажмите на ЦВЕТ слова:</h3>
+        <div style="font-size:32px;font-weight:900;text-align:center;margin:14px 0;color:${ink.c};">${w.n}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${cs.map(x=>`<button type="button" class="btn btn-sec st-btn" data-c="${x.c}" style="min-height:48px;">${x.n}</button>`).join("")}</div>`;
+      box.querySelectorAll(".st-btn").forEach(b => b.onclick = () => b.dataset.c === ink.c ? onOk() : onFail());
+      return;
+    }
+    if (t === "logic") {
+      const riddles = [
+        {q:"Сколько месяцев в году имеют 28 дней?", o:["Только 1","2 месяца","6 месяцев","Все 12"], a:3},
+        {q:"Что становится влажным, когда сушит?", o:["Вода","Полотенце","Фен","Солнце"], a:1},
+        {q:"Сколько будет 2 + 2 × 2?", o:["8","6","4","10"], a:1},
+        {q:"Что легче: 1 кг пуха или 1 кг железа?", o:["Пух","Железо","Одинаково","Ветер"], a:2}
+      ];
+      const r = riddles[Math.floor(Math.random()*riddles.length)];
+      box.innerHTML = `<h3 style="text-align:center;margin:0 0 10px;">${r.q}</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${r.o.map((x,i)=>`<button type="button" class="btn btn-sec rd-btn" data-i="${i}" style="min-height:48px;">${x}</button>`).join("")}</div>`;
+      box.querySelectorAll(".rd-btn").forEach(b => b.onclick = () => Number(b.dataset.i) === r.a ? onOk() : onFail());
+      return;
+    }
+    const a = 15 + Math.floor(Math.random() * 35), b = 12 + Math.floor(Math.random() * 28), ans = a + b;
+    box.innerHTML = `<h3 style="text-align:center;margin:0 0 8px;">Решите пример:</h3>
+      <div style="font-size:36px;font-weight:900;text-align:center;margin:12px 0;">${a} + ${b} = ?</div>
+      <input type="number" id="ansIn" placeholder="Введите ответ" style="width:100%;text-align:center;font-size:20px;min-height:46px;">
+      <button type="button" id="ansBtn" class="btn" style="width:100%;margin-top:10px;min-height:48px;">Проверить</button>`;
+    document.getElementById("ansBtn").onclick = () => Number(document.getElementById("ansIn").value) === ans ? onOk() : onFail();
+  }
   window.launchLockedAlarmScreen = function(title, snd, tType, cnt) {
     const vol = Number(localStorage.getItem("sa_vol") || 60);
     const hasTasks = (tType !== "none" && cnt > 0);
+    const allTypes = ["math", "code", "targets", "stroop", "logic"];
     let queue = [];
     if (!hasTasks) queue = ["none"];
-    else if (tType === "marathon" && window.TasksPack) queue = [...window.TasksPack.ALL_15];
-    else queue = Array.from({length: cnt}, () => tType);
+    else if (tType === "marathon" || tType === "random_pool") {
+      queue = Array.from({length: cnt}, () => allTypes[Math.floor(Math.random() * allTypes.length)]);
+    } else {
+      queue = Array.from({length: cnt}, () => tType);
+    }
 
-    window.ringQueue = queue;
     if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
     if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(true, vol, hasTasks);
 
@@ -58,33 +117,33 @@
     if (ov) ov.remove();
     ov = document.createElement("div");
     ov.id = "saFullLockScreen";
-    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:#0d0f17;z-index:99999;display:flex;flex-direction:column;justify-content:space-between;padding:18px;box-sizing:border-box;color:#fff;overflow-y:auto;";
+    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:#0d0f17;z-index:999999;display:flex;flex-direction:column;justify-content:space-between;padding:18px;box-sizing:border-box;color:#fff;overflow-y:auto;";
     const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
     ov.innerHTML = `
       <div>
         <div style="text-align:center;color:#ff2a4b;font-weight:800;font-size:14px;">${title}</div>
-        <div style="text-align:center;font-size:46px;font-weight:900;margin:4px 0;">${new Date().toTimeString().slice(0,5)}</div>
-        <div id="saLockProg" style="text-align:center;font-size:13px;color:#10b981;font-weight:700;margin-bottom:10px;"></div>
+        <div style="text-align:center;font-size:48px;font-weight:900;margin:4px 0;">${new Date().toTimeString().slice(0,5)}</div>
+        <div id="saLockProg" style="text-align:center;font-size:14px;color:#10b981;font-weight:700;margin-bottom:10px;"></div>
         <div style="display:flex;gap:6px;margin-bottom:12px;">
-          <select id="saLockSndSel" style="flex:1;min-height:38px;font-size:13px;">
+          <select id="saLockSndSel" style="flex:1;min-height:40px;font-size:13px;">
             <option value="random">🎲 Случайная мелодия</option>
             ${list120}
           </select>
-          <button type="button" id="saLockNextSnd" class="btn btn-sec btn-sm" style="min-height:38px;padding:0 10px;">🔀</button>
+          <button type="button" id="saLockNextSnd" class="btn btn-sec btn-sm" style="min-height:40px;padding:0 12px;">🔀</button>
         </div>
       </div>
-      <div id="saLockTaskBox" style="background:#161822;border:1px solid #2a2e3d;border-radius:18px;padding:16px;margin:auto 0;"></div>
+      <div id="saLockTaskBox" style="background:#161822;border:2px solid #2a2e3d;border-radius:18px;padding:16px;margin:auto 0;"></div>
       <div style="text-align:center;font-size:12px;color:#8b92a5;margin-top:10px;">
-        ${hasTasks ? "🔒 Выход заблокирован до решения всех заданий" : "🔓 Режим без заданий"}
+        ${hasTasks ? "🔒 Экран заблокирован до решения всех заданий" : "🔓 Обычный звонок без блокировки"}
       </div>
     `;
     document.body.appendChild(ov);
 
     const sSel = document.getElementById("saLockSndSel");
-    if (window.SoundPack) sSel.value = window.SoundPack.getCurrentId();
+    if (window.SoundPack && window.SoundPack.getCurrentId) sSel.value = window.SoundPack.getCurrentId();
     sSel.onchange = () => window.SoundPack && window.SoundPack.play(sSel.value, Number(localStorage.getItem("sa_vol")||60), window.db||null, false);
     document.getElementById("saLockNextSnd").onclick = () => {
-      if (window.SoundPack) { window.SoundPack.play("random", Number(localStorage.getItem("sa_vol")||60), window.db||null, false); sSel.value = window.SoundPack.getCurrentId(); }
+      if (window.SoundPack) { window.SoundPack.play("random", Number(localStorage.getItem("sa_vol")||60), window.db||null, false); if(window.SoundPack.getCurrentId) sSel.value = window.SoundPack.getCurrentId(); }
     };
 
     let step = 0;
@@ -96,17 +155,15 @@
     };
     const showStep = () => {
       if (step >= queue.length) { finishAll(); return; }
-      prog.innerText = hasTasks ? `Задание ${step + 1} из ${queue.length}` : "Обычный звонок";
-      if (window.renderFullTask) {
-        window.renderFullTask(queue[step], 2, tBox, () => { step++; showStep(); }, () => {
-          tBox.style.borderColor = "#ff2a4b";
-          setTimeout(() => tBox.style.borderColor = "#2a2e3d", 350);
-        });
-      }
+      prog.innerText = hasTasks ? `Задание ${step + 1} из ${queue.length}` : "Режим без заданий";
+      drawTask(queue[step], tBox, () => { step++; showStep(); }, () => {
+        tBox.style.borderColor = "#ff2a4b";
+        setTimeout(() => tBox.style.borderColor = "#2a2e3d", 350);
+      });
     };
     showStep();
   };
-  // 3. Окно настройки теста (кол-во заданий, тип, мелодия и громкость)
+
   window.openTestConfigModal = function() {
     let m = document.getElementById("saTestCfgModal");
     if (m) m.remove();
@@ -125,16 +182,12 @@
         <input type="number" id="tCfgCount" min="0" max="15" value="2" style="width:100%;margin-bottom:10px;min-height:42px;">
         <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Тип заданий</label>
         <select id="tCfgTask" style="width:100%;margin-bottom:10px;min-height:42px;">
+          <option value="random_pool">🎲 Случайные (разные подряд)</option>
           <option value="math">1. Математика</option>
           <option value="code">2. Код тревоги</option>
-          <option value="targets">5. Раздави мишени</option>
-          <option value="logic">6. Логическая загадка</option>
-          <option value="sort">8. Сортировка чисел</option>
-          <option value="stroop">9. Тест Струпа</option>
-          <option value="seq">10. Продолжи ряд</option>
-          <option value="reverse">11. Слово наоборот</option>
-          <option value="eq">15. Уравнение X</option>
-          <option value="marathon">🔥 Все 15 подряд</option>
+          <option value="targets">3. Раздави мишени</option>
+          <option value="stroop">4. Тест Струпа (цвета)</option>
+          <option value="logic">5. Логическая загадка</option>
           <option value="none">0. Без заданий (без блокировки)</option>
         </select>
         <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Музыка (120 звуков)</label>
@@ -161,12 +214,12 @@
     let prv = false;
     document.getElementById("tCfgPrv").onclick = e => {
       prv = !prv;
-      if (prv) { window.SoundPack.play(document.getElementById("tCfgSound").value, Number(localStorage.getItem("sa_vol")||60), window.db||null, true); e.target.innerText = "⏹ Стоп"; }
-      else { window.SoundPack.stop(); e.target.innerText = "▶️ Прослушать"; }
+      if (prv) { if(window.SoundPack) window.SoundPack.play(document.getElementById("tCfgSound").value, Number(localStorage.getItem("sa_vol")||60), window.db||null, true); e.target.innerText = "⏹ Стоп"; }
+      else { if(window.SoundPack) window.SoundPack.stop(); e.target.innerText = "▶️ Прослушать"; }
     };
-    document.getElementById("tCfgClose").onclick = () => { window.SoundPack.stop(); m.remove(); };
+    document.getElementById("tCfgClose").onclick = () => { if(window.SoundPack) window.SoundPack.stop(); m.remove(); };
     document.getElementById("tCfgRun").onclick = () => {
-      window.SoundPack.stop();
+      if(window.SoundPack) window.SoundPack.stop();
       const cnt = Math.min(15, Math.max(0, Number(document.getElementById("tCfgCount").value) || 0));
       const rawT = document.getElementById("tCfgTask").value;
       const tType = (cnt === 0 || rawT === "none") ? "none" : rawT;
@@ -183,7 +236,6 @@
     window.launchLockedAlarmScreen(d.title || "⏰ БУДИЛЬНИК", d.sound || "random", d.task || "math", d.task === "none" ? 0 : (Number(d.rounds) || 1));
   };
 
-  // 4. Перехват кнопки "Тест" на главном экране
   document.addEventListener("click", e => {
     const b = e.target.closest("button");
     if (b && b.innerText && b.innerText.trim().toLowerCase().includes("тест") && !b.closest("#saTestCfgModal") && !b.closest("#saFullLockScreen")) {
