@@ -895,3 +895,316 @@
     if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 1000);
   };
 })();
+(function independent25ProfilesAndStrictLock() {
+  window.getProfile25Config = function(profile) {
+    const p = profile === "test" ? "test" : "alarm";
+    const mode = localStorage.getItem(`sa_l25_${p}_mode`) || "random";
+    const singleId = Math.max(1, Math.min(25, Number(localStorage.getItem(`sa_l25_${p}_single_id`) || 1)));
+    const rndCnt = Math.max(1, Math.min(25, Number(localStorage.getItem(`sa_l25_${p}_rnd_cnt`) || 2)));
+    let queue = [];
+    try {
+      const raw = localStorage.getItem(`sa_l25_${p}_queue`) || "[]";
+      queue = JSON.parse(raw).filter(id => id >= 1 && id <= 25);
+    } catch (e) {}
+    return { profile: p, mode, singleId, rndCnt, queue };
+  };
+
+  window.saveProfile25Config = function(profile, cfg) {
+    const p = profile === "test" ? "test" : "alarm";
+    if (cfg.mode !== undefined) localStorage.setItem(`sa_l25_${p}_mode`, cfg.mode);
+    if (cfg.singleId !== undefined) localStorage.setItem(`sa_l25_${p}_single_id`, String(cfg.singleId));
+    if (cfg.rndCnt !== undefined) localStorage.setItem(`sa_l25_${p}_rnd_cnt`, String(cfg.rndCnt));
+    if (cfg.queue !== undefined) localStorage.setItem(`sa_l25_${p}_queue`, JSON.stringify(cfg.queue));
+  };
+
+  window.openProfile25QueueModal = function(profile, onSaveCb) {
+    const p = profile === "test" ? "test" : "alarm";
+    let m = document.getElementById("saProfile25QModal");
+    if (m) m.remove();
+    m = document.createElement("div");
+    m.id = "saProfile25QModal";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.88);display:flex;justify-content:center;align-items:center;padding:12px;z-index:27000;box-sizing:border-box;";
+
+    let curQueue = Array.from(window.getProfile25Config(p).queue);
+    const allTasks = window.Logic25Pack ? window.Logic25Pack.TASKS : [];
+    const titleSuffix = p === "test" ? "Теста" : "Будильника";
+
+    m.innerHTML = `
+      <div style="width:100%;max-width:390px;max-height:92vh;background:#161822;border:1px solid #2a2e3d;border-radius:18px;padding:14px;box-sizing:border-box;color:#fff;display:flex;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <b style="font-size:16px;">🛠️ Очередь 25 задач (${titleSuffix})</b>
+          <button type="button" id="pq25Close" class="btn btn-sec btn-sm" style="min-height:32px;padding:0 10px;">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button type="button" id="pq25AddAll" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">➕ Все 25 задач</button>
+          <button type="button" id="pq25Clear" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">🗑️ Очистить (0)</button>
+        </div>
+        <div style="font-size:12px;color:#10b981;font-weight:700;margin-bottom:4px;">Текущая очередь (<span id="pq25Cnt">0</span>):</div>
+        <div id="pq25Active" style="max-height:170px;overflow-y:auto;background:#0f111a;border:1px solid #2a2e3d;border-radius:12px;padding:6px;margin-bottom:10px;"></div>
+        <div style="font-size:12px;color:#8b92a5;font-weight:700;margin-bottom:4px;">База из 25 задач (нажмите ➕):</div>
+        <div id="pq25Cat" style="flex:1;overflow-y:auto;background:#0f111a;border:1px solid #2a2e3d;border-radius:12px;padding:6px;margin-bottom:10px;"></div>
+        <button type="button" id="pq25Save" class="btn" style="width:100%;min-height:46px;font-size:15px;">💾 Сохранить очередь</button>
+      </div>
+    `;
+    document.body.appendChild(m);
+
+    const actHost = document.getElementById("pq25Active");
+    const catHost = document.getElementById("pq25Cat");
+    const cntLbl = document.getElementById("pq25Cnt");
+
+    function renderList() {
+      cntLbl.innerText = curQueue.length;
+      if (curQueue.length === 0) {
+        actHost.innerHTML = `<div style="text-align:center;color:#8b92a5;font-size:12px;padding:10px;">Очередь пуста (0 заданий)</div>`;
+        return;
+      }
+      actHost.innerHTML = curQueue.map((tid, idx) => {
+        const info = allTasks.find(x => x.id === tid) || { id: tid, title: "Задача #" + tid };
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;padding:5px 6px;border-bottom:1px solid #1f222e;font-size:12px;">
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><b>${idx + 1}.</b> №${info.id} ${info.title}</span>
+          <button type="button" class="btn btn-sec btn-sm pqu25" data-i="${idx}" style="min-height:28px;padding:0 6px;">⬆️</button>
+          <button type="button" class="btn btn-sec btn-sm pqd25" data-i="${idx}" style="min-height:28px;padding:0 6px;">⬇️</button>
+          <button type="button" class="btn btn-sec btn-sm pqr25" data-i="${idx}" style="min-height:28px;padding:0 6px;color:#ff2a4b;">✕</button>
+        </div>`;
+      }).join("");
+
+      actHost.querySelectorAll(".pqu25").forEach(b => b.onclick = () => {
+        const i = Number(b.dataset.i);
+        if (i > 0) { const t = curQueue.at(i - 1); curQueue[i - 1] = curQueue.at(i); curQueue[i] = t; renderList(); }
+      });
+      actHost.querySelectorAll(".pqd25").forEach(b => b.onclick = () => {
+        const i = Number(b.dataset.i);
+        if (i < curQueue.length - 1) { const t = curQueue.at(i + 1); curQueue[i + 1] = curQueue.at(i); curQueue[i] = t; renderList(); }
+      });
+      actHost.querySelectorAll(".pqr25").forEach(b => b.onclick = () => { curQueue.splice(Number(b.dataset.i), 1); renderList(); });
+    }
+
+    catHost.innerHTML = allTasks.map(t => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px;border-bottom:1px solid #1f222e;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;">№${t.id}. ${t.title}</div>
+          <div style="font-size:11px;color:#8b92a5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.q}</div>
+        </div>
+        <button type="button" class="btn btn-sec btn-sm pqa25" data-id="${t.id}" style="min-height:30px;padding:0 10px;">➕</button>
+      </div>
+    `).join("");
+
+    catHost.querySelectorAll(".pqa25").forEach(b => b.onclick = () => { curQueue.push(Number(b.dataset.id)); renderList(); });
+    document.getElementById("pq25AddAll").onclick = () => { curQueue = allTasks.map(t => t.id); renderList(); };
+    document.getElementById("pq25Clear").onclick = () => { curQueue = []; renderList(); };
+    document.getElementById("pq25Close").onclick = () => m.remove();
+    document.getElementById("pq25Save").onclick = () => {
+      window.saveProfile25Config(p, { queue: curQueue, mode: curQueue.length === 0 ? "none" : "custom" });
+      m.remove();
+      if (onSaveCb) onSaveCb();
+    };
+    renderList();
+  };
+  function buildIdentical25PanelHTML(profile) {
+    const cfg = window.getProfile25Config(profile);
+    const allTasks = window.Logic25Pack ? window.Logic25Pack.TASKS : [];
+    const singleOpts = allTasks.map(t => `<option value="${t.id}" ${cfg.singleId===t.id?"selected":""}>№${t.id}. ${t.title}</option>`).join("");
+    const copyLabel = profile === "test" ? "🔄 Взять из будильника" : "🔄 Взять из теста";
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px;">
+        <span style="font-size:13px;font-weight:700;">🧠 Задания (25 задач)</span>
+        <button type="button" class="btn btn-sec btn-sm p25-copy" style="min-height:28px;font-size:11px;padding:2px 8px;">${copyLabel}</button>
+      </div>
+      <select class="p25-mode" style="width:100%;min-height:40px;margin-bottom:8px;">
+        <option value="none" ${cfg.mode==="none"?"selected":""}>0. Без заданий (0 заданий)</option>
+        <option value="single" ${cfg.mode==="single"?"selected":""}>🎯 Выбрать конкретное задание</option>
+        <option value="random" ${cfg.mode==="random"?"selected":""}>🎲 Случайный выбор (без повторов)</option>
+        <option value="custom" ${cfg.mode==="custom"?"selected":""}>🧩 Своя очередь</option>
+      </select>
+      <div class="p25-single-row" style="display:${cfg.mode==="single"?"block":"none"};margin-bottom:6px;">
+        <select class="p25-single-sel" style="width:100%;min-height:38px;">${singleOpts}</select>
+      </div>
+      <div class="p25-rnd-row" style="display:${cfg.mode==="random"?"flex":"none"};gap:6px;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;color:#8b92a5;">Кол-во (1–25):</span>
+        <input type="number" class="p25-rnd-cnt" min="1" max="25" value="${cfg.rndCnt}" style="width:65px;min-height:36px;text-align:center;">
+        <button type="button" class="btn btn-sec btn-sm p25-all25" style="flex:1;min-height:36px;font-size:12px;">Все 25 заданий</button>
+      </div>
+      <div class="p25-custom-row" style="display:${cfg.mode==="custom"?"block":"none"};">
+        <button type="button" class="btn btn-sec btn-sm p25-open-q" style="width:100%;min-height:38px;margin-bottom:4px;">🛠️ Настроить очередь заданий</button>
+        <div class="p25-q-sum" style="font-size:11px;color:#10b981;text-align:center;"></div>
+      </div>
+    `;
+  }
+
+  function wireIdentical25Panel(box, profile) {
+    const modeSel = box.querySelector(".p25-mode");
+    const singleRow = box.querySelector(".p25-single-row");
+    const singleSel = box.querySelector(".p25-single-sel");
+    const rndRow = box.querySelector(".p25-rnd-row");
+    const rndCnt = box.querySelector(".p25-rnd-cnt");
+    const all25Btn = box.querySelector(".p25-all25");
+    const customRow = box.querySelector(".p25-custom-row");
+    const openQBtn = box.querySelector(".p25-open-q");
+    const qSum = box.querySelector(".p25-q-sum");
+    const copyBtn = box.querySelector(".p25-copy");
+
+    const refresh = () => {
+      const cfg = window.getProfile25Config(profile);
+      modeSel.value = cfg.mode;
+      singleSel.value = String(cfg.singleId);
+      rndCnt.value = String(cfg.rndCnt);
+      singleRow.style.display = cfg.mode === "single" ? "block" : "none";
+      rndRow.style.display = cfg.mode === "random" ? "flex" : "none";
+      customRow.style.display = cfg.mode === "custom" ? "block" : "none";
+      qSum.innerText = cfg.queue.length ? `Очередь (${cfg.queue.length}): ${cfg.queue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
+    };
+
+    modeSel.onchange = () => { window.saveProfile25Config(profile, { mode: modeSel.value }); refresh(); };
+    singleSel.onchange = () => { window.saveProfile25Config(profile, { singleId: Number(singleSel.value) }); };
+    rndCnt.oninput = () => {
+      const v = Math.max(1, Math.min(25, Number(rndCnt.value) || 1));
+      window.saveProfile25Config(profile, { rndCnt: v });
+    };
+    all25Btn.onclick = () => { rndCnt.value = "25"; window.saveProfile25Config(profile, { rndCnt: 25 }); };
+    openQBtn.onclick = () => window.openProfile25QueueModal(profile, () => refresh());
+    copyBtn.onclick = () => {
+      const other = profile === "test" ? "alarm" : "test";
+      window.saveProfile25Config(profile, window.getProfile25Config(other));
+      refresh();
+    };
+    refresh();
+  }
+
+  setInterval(() => {
+    const alBox = document.getElementById("saLogic25Box");
+    if (alBox && !alBox.dataset.indep25) {
+      alBox.dataset.indep25 = "1";
+      alBox.innerHTML = buildIdentical25PanelHTML("alarm");
+      wireIdentical25Panel(alBox, "alarm");
+    }
+
+    const tsBox = document.getElementById("tCfgL25Box");
+    if (tsBox && !tsBox.dataset.indep25) {
+      tsBox.dataset.indep25 = "1";
+      tsBox.innerHTML = buildIdentical25PanelHTML("test");
+      wireIdentical25Panel(tsBox, "test");
+
+      const runBtn = document.getElementById("tCfgRun");
+      if (runBtn) {
+        runBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const snd = document.getElementById("tCfgSound")?.value || "random";
+          const ta = document.getElementById("tCfgPromptInput");
+          const promptText = ta ? ta.value.trim() : (localStorage.getItem("sa_test_prompt") || "").trim();
+          if (ta) localStorage.setItem("sa_test_prompt", ta.value);
+          document.getElementById("saTestCfgModal")?.remove();
+          window.executeStrict25AlarmByProfile("test", "🧪 ТЕСТОВЫЙ БУДИЛЬНИК", snd, promptText);
+        };
+      }
+    }
+  }, 200);
+  window.executeStrict25AlarmByProfile = function(profile, title, snd, customPromptText) {
+    const cfg = window.getProfile25Config(profile);
+    const vol = Math.max(50, Number(localStorage.getItem("sa_vol") || 80));
+    const promptStr = String(customPromptText || "").trim();
+
+    let taskQueue = [];
+    if (cfg.mode === "single") {
+      taskQueue = [cfg.singleId];
+    } else if (cfg.mode === "random" && window.Logic25Pack) {
+      taskQueue = window.Logic25Pack.buildRandomQueue(cfg.rndCnt);
+    } else if (cfg.mode === "custom") {
+      taskQueue = Array.from(cfg.queue);
+    }
+
+    const isZero = (cfg.mode === "none" || taskQueue.length === 0);
+    window.ringQueue = isZero ? ["none"] : taskQueue.map(id => "l25_" + id);
+
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
+    if (window.AndroidLock && window.AndroidLock.setRinging) {
+      window.AndroidLock.setRinging(true, vol, !isZero);
+    }
+    if (!isZero) {
+      try { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {}
+    }
+
+    let ov = document.getElementById("saFullLockScreen");
+    if (ov) ov.remove();
+    ov = document.createElement("div");
+    ov.id = "saFullLockScreen";
+    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:#0d0f17;z-index:999999;display:flex;flex-direction:column;justify-content:space-between;padding:18px;box-sizing:border-box;color:#fff;overflow-y:auto;";
+
+    const curName = window.SoundPack && window.SoundPack.getCurrentName ? window.SoundPack.getCurrentName() : "Мелодия будильника";
+    const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const promptBlockHTML = promptStr
+      ? `<div style="margin:10px 0 6px;padding:14px;border-radius:14px;background:#1e2436;border:1px solid #3b82f6;color:#f8fafc;font-size:19px;font-weight:700;line-height:1.4;text-align:center;white-space:pre-wrap;word-break:break-word;">${esc(promptStr)}</div>`
+      : "";
+
+    ov.innerHTML = `
+      <div>
+        <div style="text-align:center;color:#ff2a4b;font-weight:800;font-size:14px;">${title}</div>
+        <div style="text-align:center;font-size:46px;font-weight:900;margin:4px 0;">${new Date().toTimeString().slice(0,5)}</div>
+        <div id="saLockProg" style="text-align:center;font-size:14px;color:#10b981;font-weight:700;"></div>
+        <div style="text-align:center;font-size:12px;color:#8b92a5;margin-top:4px;">🎵 ${curName}</div>
+        ${promptBlockHTML}
+      </div>
+      <div id="saLockTaskBox" style="background:#161822;border:2px solid #2a2e3d;border-radius:18px;padding:16px;margin:auto 0;"></div>
+      <div style="text-align:center;font-size:12px;color:${!isZero ? "#ff2a4b" : "#8b92a5"};font-weight:700;margin-top:10px;">
+        ${!isZero ? "🔒 Выход и кнопки громкости заблокированы до решения всех заданий" : "🔓 Обычный режим (0 заданий)"}
+      </div>
+    `;
+    document.body.appendChild(ov);
+
+    const tBox = document.getElementById("saLockTaskBox");
+    const prog = document.getElementById("saLockProg");
+
+    const unlockAndClose = () => {
+      window.ringQueue = ["none"];
+      if (window.SoundPack) window.SoundPack.stop();
+      if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, vol, false);
+      try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
+      ov.remove();
+    };
+
+    if (isZero) {
+      prog.innerText = "Режим без заданий (0 заданий)";
+      const mins = Math.max(1, Number(localStorage.getItem("sa_snooze_min") || 5));
+      tBox.innerHTML = `
+        <div style="text-align:center;padding:6px 0;">
+          <button type="button" id="saZeroStopBtn" class="btn" style="width:100%;min-height:62px;font-size:20px;font-weight:900;background:#10b981;color:#fff;border:none;border-radius:14px;margin-bottom:10px;">
+            ✅ ВЫКЛЮЧИТЬ БУДИЛЬНИК
+          </button>
+          <button type="button" id="saZeroSnoozeBtn" class="btn btn-sec" style="width:100%;min-height:48px;font-size:15px;border-radius:14px;">
+            💤 Отложить на ${mins} мин
+          </button>
+        </div>
+      `;
+      document.getElementById("saZeroStopBtn").onclick = unlockAndClose;
+      document.getElementById("saZeroSnoozeBtn").onclick = () => {
+        unlockAndClose();
+        setTimeout(() => window.executeStrict25AlarmByProfile(profile, "💤 ПОВТОР БУДИЛЬНИКА", snd, promptStr), mins * 60000);
+      };
+      return;
+    }
+
+    let idx = 0;
+    const stepNext = () => {
+      if (idx >= taskQueue.length) {
+        unlockAndClose();
+        return;
+      }
+      prog.innerText = `Задание ${idx + 1} из ${taskQueue.length}`;
+      window.Logic25Pack.renderById(taskQueue.at(idx), tBox, () => {
+        idx++;
+        stepNext();
+      }, () => {
+        tBox.style.borderColor = "#ff2a4b";
+        setTimeout(() => tBox.style.borderColor = "#2a2e3d", 400);
+      });
+    };
+    stepNext();
+  };
+
+  window.onNativeWake = function(d) {
+    d = d || {};
+    const snd = (d.sound && d.sound !== "random") ? d.sound : (localStorage.getItem("sa_last_sound") || "random");
+    window.executeStrict25AlarmByProfile("alarm", d.title || "⏰ БУДИЛЬНИК", snd, "");
+    if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 1000);
+  };
+})();

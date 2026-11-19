@@ -48,7 +48,7 @@ window.Logic25Pack = (function() {
 
   function renderById(taskId, box, onSolved, onWrong) {
     const task = TASKS.find(t => t.id === Number(taskId)) || TASKS.at(0);
-    let html = `<div style="font-size:12px;color:#10b981;font-weight:700;margin-bottom:4px;text-align:center;">🧠 Задача №${task.id}: ${task.title}</div>
+    let html = `<div style="font-size:12px;color:#10b981;font-weight:700;margin-bottom:4px;text-align:center;">🧠 Задача №${task.id} из 25: ${task.title}</div>
       <div style="font-size:17px;font-weight:700;line-height:1.35;text-align:center;margin-bottom:14px;">${task.q}</div>`;
 
     if (task.type === "choice") {
@@ -77,3 +77,4 @@ window.Logic25Pack = (function() {
 
   return { TASKS, buildRandomQueue, renderById };
 })();
+window.Logic15Pack = window.Logic25Pack;
