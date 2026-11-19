@@ -12,7 +12,6 @@ window.SoundPack = (function() {
     };
   });
 
-  // Выбор случайного трека из 120 без повторения предыдущего подряд
   function pickRandomNoConsecutive() {
     const lastId = localStorage.getItem("sa_prev_played_mel") || "";
     let pool = list.filter(m => m.id !== lastId);
@@ -22,11 +21,14 @@ window.SoundPack = (function() {
     return chosen;
   }
 
-  let audioEl = null, baseVol = 60, currentTrack = list.at(0);
+  let audioEl = null, activeBlobUrl = null, baseVol = 60, currentTrack = list.at(0), isShouldPlay = false;
 
   function stop() {
+    isShouldPlay = false;
     if (audioEl) {
       try {
+        audioEl.onended = null;
+        audioEl.onerror = null;
         audioEl.pause();
         audioEl.currentTime = 0;
         audioEl.removeAttribute("src");
@@ -34,19 +36,39 @@ window.SoundPack = (function() {
       } catch (e) {}
       audioEl = null;
     }
+    if (activeBlobUrl) {
+      try { URL.revokeObjectURL(activeBlobUrl); } catch (e) {}
+      activeBlobUrl = null;
+    }
     if (window.AndroidLock && window.AndroidLock.setRinging) {
       window.AndroidLock.setRinging(false, baseVol, false);
     }
   }
 
-  function startHtmlAudio(src) {
+  function startHtmlAudio(src, isBlob) {
     stop();
+    isShouldPlay = true;
+    if (isBlob) activeBlobUrl = src;
     try {
       audioEl = document.createElement("audio");
       audioEl.src = src;
       audioEl.loop = true;
       audioEl.preload = "auto";
       audioEl.volume = Math.max(0.05, Math.min(1.0, baseVol / 100));
+
+      // Двойная гарантия зацикливания до момента явной остановки
+      audioEl.onended = function() {
+        if (isShouldPlay && audioEl) {
+          audioEl.currentTime = 0;
+          audioEl.play().catch(() => {});
+        }
+      };
+      audioEl.onerror = function() {
+        if (isShouldPlay && src !== list.at(0).file) {
+          startHtmlAudio(list.at(0).file, false);
+        }
+      };
+
       const p = audioEl.play();
       if (p && p.catch) p.catch(() => {});
     } catch (e) {}
@@ -60,26 +82,39 @@ window.SoundPack = (function() {
       window.AndroidLock.setRinging(true, baseVol, hasTask);
     }
 
-    if (!id || id === "random" || (!id.startsWith("mel_") && !id.startsWith("custom_"))) {
-      currentTrack = pickRandomNoConsecutive();
-    } else if (id.startsWith("mel_")) {
-      currentTrack = list.find(x => x.id === id) || list.at(0);
-      localStorage.setItem("sa_prev_played_mel", currentTrack.id);
+    // Если передан конкретный ID мелодии (mel_1 .. mel_120) — играем строго её
+    if (id && typeof id === "string" && id.startsWith("mel_")) {
+      const exact = list.find(x => x.id === id);
+      if (exact) {
+        currentTrack = exact;
+        localStorage.setItem("sa_prev_played_mel", exact.id);
+        startHtmlAudio(exact.file, false);
+        return currentTrack;
+      }
     }
 
-    if (id && id.startsWith("custom_") && db) {
+    // Пользовательский файл из IndexedDB
+    if (id && typeof id === "string" && id.startsWith("custom_") && db) {
       currentTrack = { id: id, name: "Своя мелодия (MP3/WAV)", file: "" };
-      db.transaction("tracks", "readonly").objectStore("tracks").get(id).onsuccess = e => {
-        if (e.target.result) {
-          startHtmlAudio(URL.createObjectURL(e.target.result.blob));
-        } else {
-          currentTrack = list.at(0);
-          startHtmlAudio(currentTrack.file);
-        }
-      };
-    } else {
-      startHtmlAudio(currentTrack.file);
+      try {
+        db.transaction("tracks", "readonly").objectStore("tracks").get(id).onsuccess = e => {
+          if (e.target.result && e.target.result.blob) {
+            startHtmlAudio(URL.createObjectURL(e.target.result.blob), true);
+          } else {
+            currentTrack = list.at(0);
+            startHtmlAudio(currentTrack.file, false);
+          }
+        };
+      } catch (err) {
+        currentTrack = list.at(0);
+        startHtmlAudio(currentTrack.file, false);
+      }
+      return currentTrack;
     }
+
+    // Режим "random" или пустое значение — случайная без повтора предыдущей подряд
+    currentTrack = pickRandomNoConsecutive();
+    startHtmlAudio(currentTrack.file, false);
     return currentTrack;
   }
 

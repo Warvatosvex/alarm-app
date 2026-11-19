@@ -358,3 +358,120 @@
     }
   }, 250);
 })();
+(function guaranteedExactMelodyAudit() {
+  // Извлекаем точное время (HH:MM) из открытого модального окна настройки будильника
+  function extractModalTime(modal) {
+    if (!modal) return "";
+    const tIn = modal.querySelector('input[type="time"]');
+    if (tIn && tIn.value) return tIn.value.slice(0, 5);
+    const selects = Array.from(modal.querySelectorAll("select")).filter(s => !s.classList.contains("sa-mel-sel") && !s.dataset.ok15);
+    if (selects.length >= 2 && /^\d{1,2}$/.test(selects.at(0).value) && /^\d{1,2}$/.test(selects.at(1).value)) {
+      return String(selects.at(0).value).padStart(2, "0") + ":" + String(selects.at(1).value).padStart(2, "0");
+    }
+    return "";
+  }
+
+  // Сохраняем выбранную мелодию при любом изменении в списке и при нажатии "Сохранить"
+  function bindModalMelodyPersistence(modal) {
+    const melSel = modal.querySelector(".sa-mel-sel");
+    if (!melSel || melSel.dataset.exactBound) return;
+    melSel.dataset.exactBound = "1";
+
+    const curTime = extractModalTime(modal);
+    const sMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+    if (curTime && sMap[curTime]) {
+      melSel.value = sMap[curTime];
+    } else if (localStorage.getItem("sa_last_sound")) {
+      melSel.value = localStorage.getItem("sa_last_sound");
+    }
+
+    const commitChoice = () => {
+      const val = melSel.value || "random";
+      localStorage.setItem("sa_last_sound", val);
+      const tKey = extractModalTime(modal);
+      if (tKey) {
+        const updatedMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+        updatedMap[tKey] = val;
+        localStorage.setItem("sa_per_alarm_snd", JSON.stringify(updatedMap));
+      }
+      if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 120);
+    };
+
+    melSel.addEventListener("change", commitChoice);
+    modal.querySelectorAll("button").forEach(b => {
+      if (b.innerText && b.innerText.includes("Сохранить")) {
+        b.addEventListener("click", commitChoice, true);
+      }
+    });
+  }
+
+  setInterval(() => {
+    document.querySelectorAll(".modal").forEach(bindModalMelodyPersistence);
+  }, 250);
+
+  // Переопределяем планировщик: в Android передаётся СТРОГО выбранная для этого будильника мелодия
+  window.pushExactAlarmSchedule = function() {
+    if (!window.AndroidLock || !window.AndroidLock.scheduleNextAlarmWithData) return;
+    let list = [];
+    try {
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) list = alarms;
+      else list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+    } catch (e) {}
+
+    const sndMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+    const zeroMap = JSON.parse(localStorage.getItem("sa_zero_alarms") || "{}");
+    const fallbackSnd = localStorage.getItem("sa_last_sound") || "random";
+    const now = new Date();
+    let bestTs = 0, bestPayload = null;
+
+    list.filter(a => a && a.enabled).forEach(a => {
+      const parts = String(a.time || "07:00").split(":");
+      const hh = Number(parts.at(0)) || 0, mm = Number(parts.at(1)) || 0;
+      const tNorm = String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+      const days = Array.isArray(a.days) ? a.days : [];
+
+      for (let d = 0; d <= 7; d++) {
+        const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, hh, mm, 0, 0);
+        if (cand.getTime() > now.getTime() && (days.length === 0 || days.includes(cand.getDay()))) {
+          if (bestTs === 0 || cand.getTime() < bestTs) {
+            bestTs = cand.getTime();
+            const isZ = Boolean(zeroMap[tNorm] || zeroMap[a.time] || a.task === "none");
+            const exactSound = sndMap[tNorm] || sndMap[a.time] || (a.sound && a.sound.startsWith("mel_") ? a.sound : fallbackSnd);
+            bestPayload = {
+              title: "⏰ БУДИЛЬНИК " + tNorm,
+              sound: exactSound,
+              task: isZ ? "none" : (a.task || "math"),
+              diff: Number(a.diff) || 6,
+              rounds: isZ ? 0 : (Number(a.rounds) || 1)
+            };
+          }
+          break;
+        }
+      }
+    });
+
+    if (bestTs > 0 && bestPayload) {
+      window.AndroidLock.scheduleNextAlarmWithData(bestTs, JSON.stringify(bestPayload));
+    } else {
+      window.AndroidLock.scheduleNextAlarmWithData(0, "{}");
+    }
+  };
+
+  // Гарантируем, что при срабатывании будильника запускается переданная мелодия (а не случайная, если выбрана конкретная)
+  window.onNativeWake = function(d) {
+    d = d || {};
+    const sndMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+    const timeMatch = String(d.title || "").match(/(\d{2}:\d{2})/);
+    const tKey = timeMatch ? timeMatch.at(1) : "";
+    const resolvedSound = (d.sound && d.sound !== "random") ? d.sound : (sndMap[tKey] || d.sound || localStorage.getItem("sa_last_sound") || "random");
+    const isZ = (d.task === "none" || Number(d.rounds) === 0);
+    window.launchLockedAlarmScreen(
+      d.title || "⏰ БУДИЛЬНИК",
+      resolvedSound,
+      isZ ? "none" : (d.task || "math"),
+      isZ ? 0 : (d.task === "marathon" ? 15 : (Number(d.rounds) || 1)),
+      Number(d.diff) || 6
+    );
+    setTimeout(window.pushExactAlarmSchedule, 1000);
+  };
+})();
