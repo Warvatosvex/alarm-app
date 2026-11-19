@@ -475,3 +475,171 @@
     setTimeout(window.pushExactAlarmSchedule, 1000);
   };
 })();
+(function integrateLogic25AndDucking() {
+  let duckTimer = null;
+  function duckVolumeOnActivity() {
+    if (!document.getElementById("saFullLockScreen")) return;
+    const baseVol = Number(localStorage.getItem("sa_vol") || 60);
+    const duckVol = Math.max(12, Math.round(baseVol * 0.25));
+    if (window.AndroidLock && window.AndroidLock.setVolume) window.AndroidLock.setVolume(duckVol);
+    document.querySelectorAll("audio").forEach(a => { try { a.volume = duckVol / 100; } catch (e) {} });
+
+    clearTimeout(duckTimer);
+    duckTimer = setTimeout(() => {
+      if (!document.getElementById("saFullLockScreen")) return;
+      if (window.AndroidLock && window.AndroidLock.setVolume) window.AndroidLock.setVolume(baseVol);
+      document.querySelectorAll("audio").forEach(a => { try { a.volume = Math.min(1, baseVol / 100); } catch (e) {} });
+    }, 6000);
+  }
+
+  document.addEventListener("input", duckVolumeOnActivity, true);
+  document.addEventListener("pointerdown", e => {
+    if (e.target.closest("#saLockTaskBox")) duckVolumeOnActivity();
+  }, true);
+
+  setInterval(() => {
+    document.querySelectorAll(".modal").forEach(modal => {
+      if (modal.id === "saTestCfgModal" || modal.querySelector("#saLogic25Box")) return;
+      const melSel = modal.querySelector(".sa-mel-sel");
+      if (!melSel) return;
+
+      const enabled = localStorage.getItem("sa_logic25_on") === "1";
+      const count = Number(localStorage.getItem("sa_logic25_cnt") || 2);
+
+      const box = document.createElement("div");
+      box.id = "saLogic25Box";
+      box.style.cssText = "margin-bottom:12px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
+      box.innerHTML = `
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;font-weight:700;">
+          <span>🧠 Логические задания при пробуждении</span>
+          <input type="checkbox" id="saL25Chk" ${enabled ? "checked" : ""} style="width:20px;height:20px;accent-color:#10b981;">
+        </label>
+        <div id="saL25Sub" style="display:${enabled ? "flex" : "none"};align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid #2a2e3d;font-size:12px;color:#8b92a5;">
+          <span>Количество задач подряд (1–5):</span>
+          <select id="saL25Cnt" style="width:80px;min-height:34px;padding:2px 6px;">
+            <option value="1" ${count===1?"selected":""}>1</option>
+            <option value="2" ${count===2?"selected":""}>2</option>
+            <option value="3" ${count===3?"selected":""}>3</option>
+            <option value="4" ${count===4?"selected":""}>4</option>
+            <option value="5" ${count===5?"selected":""}>5</option>
+          </select>
+        </div>`;
+      melSel.parentElement.before(box);
+
+      const chk = box.querySelector("#saL25Chk");
+      const sub = box.querySelector("#saL25Sub");
+      const cntSel = box.querySelector("#saL25Cnt");
+      chk.onchange = () => { localStorage.setItem("sa_logic25_on", chk.checked ? "1" : "0"); sub.style.display = chk.checked ? "flex" : "none"; };
+      cntSel.onchange = () => localStorage.setItem("sa_logic25_cnt", cntSel.value);
+    });
+
+    const testRunBtn = document.getElementById("tCfgRun");
+    if (testRunBtn && !document.getElementById("tCfgL25Box")) {
+      const enabled = localStorage.getItem("sa_logic25_on") === "1";
+      const count = Number(localStorage.getItem("sa_logic25_cnt") || 2);
+      const lBox = document.createElement("div");
+      lBox.id = "tCfgL25Box";
+      lBox.style.cssText = "margin-bottom:10px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
+      lBox.innerHTML = `
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;font-weight:700;">
+          <span>🧠 Логические задачи (25 шт.)</span>
+          <input type="checkbox" id="tCfgL25Chk" ${enabled ? "checked" : ""} style="width:20px;height:20px;accent-color:#10b981;">
+        </label>
+        <div id="tCfgL25Sub" style="display:${enabled ? "block" : "none"};margin-top:8px;padding-top:8px;border-top:1px solid #2a2e3d;">
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#8b92a5;margin-bottom:8px;">
+            <span>Задач подряд:</span>
+            <select id="tCfgL25Cnt" style="width:80px;min-height:34px;">
+              <option value="1" ${count===1?"selected":""}>1</option>
+              <option value="2" ${count===2?"selected":""}>2</option>
+              <option value="3" ${count===3?"selected":""}>3</option>
+              <option value="4" ${count===4?"selected":""}>4</option>
+              <option value="5" ${count===5?"selected":""}>5</option>
+            </select>
+          </div>
+          <button type="button" id="tCfgTryOneL25" class="btn btn-sec btn-sm" style="width:100%;min-height:36px;">🧪 Протестировать случайную задачу</button>
+        </div>`;
+      testRunBtn.before(lBox);
+
+      const tChk = document.getElementById("tCfgL25Chk"), tSub = document.getElementById("tCfgL25Sub"), tCnt = document.getElementById("tCfgL25Cnt");
+      tChk.onchange = () => { localStorage.setItem("sa_logic25_on", tChk.checked ? "1" : "0"); tSub.style.display = tChk.checked ? "block" : "none"; };
+      tCnt.onchange = () => localStorage.setItem("sa_logic25_cnt", tCnt.value);
+      document.getElementById("tCfgTryOneL25").onclick = () => {
+        const snd = document.getElementById("tCfgSound")?.value || "random";
+        document.getElementById("saTestCfgModal")?.remove();
+        window.launchLogic25AlarmScreen("🧪 ТЕСТ ЛОГИЧЕСКОЙ ЗАДАЧИ", snd, 1);
+      };
+      testRunBtn.addEventListener("click", e => {
+        if (tChk.checked) {
+          e.preventDefault(); e.stopImmediatePropagation();
+          const snd = document.getElementById("tCfgSound")?.value || "random";
+          document.getElementById("saTestCfgModal")?.remove();
+          window.launchLogic25AlarmScreen("🧪 ТЕСТ: ЛОГИЧЕСКИЕ ЗАДАЧИ", snd, Number(tCnt.value) || 2);
+        }
+      }, true);
+    }
+  }, 250);
+  window.launchLogic25AlarmScreen = function(title, snd, totalCount) {
+    const vol = Number(localStorage.getItem("sa_vol") || 60);
+    totalCount = Math.max(1, Math.min(25, Number(totalCount) || 2));
+    window.ringQueue = Array.from({length: totalCount}, () => "logic25");
+
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
+    if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(true, vol, true);
+
+    let ov = document.getElementById("saFullLockScreen"); if (ov) ov.remove();
+    ov = document.createElement("div"); ov.id = "saFullLockScreen";
+    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:#0d0f17;z-index:999999;display:flex;flex-direction:column;justify-content:space-between;padding:18px;box-sizing:border-box;color:#fff;overflow-y:auto;";
+    const curName = window.SoundPack && window.SoundPack.getCurrentName ? window.SoundPack.getCurrentName() : "Мелодия будильника";
+    ov.innerHTML = `
+      <div>
+        <div style="text-align:center;color:#ff2a4b;font-weight:800;font-size:14px;">${title}</div>
+        <div style="text-align:center;font-size:46px;font-weight:900;margin:4px 0;">${new Date().toTimeString().slice(0,5)}</div>
+        <div id="saLockProg" style="text-align:center;font-size:14px;color:#10b981;font-weight:700;"></div>
+        <div style="text-align:center;font-size:12px;color:#8b92a5;margin-top:4px;">🎵 ${curName}</div>
+      </div>
+      <div id="saLockTaskBox" style="background:#161822;border:2px solid #2a2e3d;border-radius:18px;padding:16px;margin:auto 0;"></div>
+      <div style="text-align:center;font-size:12px;color:#8b92a5;">🔒 Решите все логические задачи, чтобы выключить сигнал</div>
+    `;
+    document.body.appendChild(ov);
+
+    let step = 0;
+    const tBox = document.getElementById("saLockTaskBox");
+    const prog = document.getElementById("saLockProg");
+
+    const showNext = () => {
+      if (step >= totalCount) {
+        clearTimeout(duckTimer);
+        if (window.SoundPack) window.SoundPack.stop();
+        if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, vol, false);
+        ov.remove();
+        return;
+      }
+      prog.innerText = `Задача ${step + 1} из ${totalCount}`;
+      if (window.Logic25Pack) {
+        window.Logic25Pack.render(tBox, () => {
+          step++;
+          showNext();
+        }, () => {
+          tBox.style.borderColor = "#ff2a4b";
+          if (window.AndroidLock && window.AndroidLock.setVolume) window.AndroidLock.setVolume(vol);
+          document.querySelectorAll("audio").forEach(a => { try { a.volume = Math.min(1, vol / 100); } catch (e) {} });
+          setTimeout(() => tBox.style.borderColor = "#2a2e3d", 400);
+        });
+      }
+    };
+    showNext();
+  };
+
+  const prevWake = window.onNativeWake;
+  window.onNativeWake = function(d) {
+    d = d || {};
+    if (localStorage.getItem("sa_logic25_on") === "1" && window.Logic25Pack) {
+      const cnt = Number(localStorage.getItem("sa_logic25_cnt") || 2);
+      const snd = (d.sound && d.sound !== "random") ? d.sound : (localStorage.getItem("sa_last_sound") || "random");
+      window.launchLogic25AlarmScreen(d.title || "⏰ БУДИЛЬНИК", snd, cnt);
+      if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 1000);
+      return;
+    }
+    if (prevWake) prevWake(d);
+  };
+})();
