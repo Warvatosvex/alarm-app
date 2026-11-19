@@ -1,8 +1,6 @@
 window.SoundPack = (function() {
   const styles = Array.of(
-    "Утренняя маримба","Теплая калимба","Нежное электропиано","Переливы арфы","Мягкие колокольчики","Теплый синтезатор",
-    "Солнечная маримба","Лесная калимба","Рассветное пиано","Воздушная арфа","Утренний перезвон","Гармония утра",
-    "Свежий бриз","Капли росы","Мягкий аккорд","Светлый день","Уютное утро","Легкий ритм","Теплый свет","Ясный рассвет"
+    "Утренняя маримба","Теплая калимба","Нежное электропиано","Переливы арфы","Мягкие колокольчики","Теплый синтезатор"
   );
 
   const list = Array.from({length: 120}, (_, i) => {
@@ -10,7 +8,7 @@ window.SoundPack = (function() {
     const st = styles.at(i % styles.length);
     return {
       id: "mel_" + (i + 1),
-      name: (i + 1) + ". " + st + " (#" + num + ")",
+      name: "Мелодия " + (i + 1) + " — " + st,
       file: "sounds/alarm_" + num + ".wav"
     };
   });
@@ -22,6 +20,34 @@ window.SoundPack = (function() {
   }
 
   let audioEl = null, baseVol = 60, currentId = "mel_1";
+
+  function stop() {
+    if (audioEl) {
+      try {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+        audioEl.removeAttribute("src");
+        audioEl.load();
+      } catch (e) {}
+      audioEl = null;
+    }
+    if (window.AndroidLock && window.AndroidLock.setRinging) {
+      window.AndroidLock.setRinging(false, baseVol, false);
+    }
+  }
+
+  function startHtmlAudio(src) {
+    stop();
+    try {
+      audioEl = document.createElement("audio");
+      audioEl.src = src;
+      audioEl.loop = true;
+      audioEl.preload = "auto";
+      audioEl.volume = Math.max(0.05, Math.min(1.0, baseVol / 100));
+      const p = audioEl.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+  }
 
   function play(id, volPercent, db, isPreview) {
     stop();
@@ -41,36 +67,13 @@ window.SoundPack = (function() {
         if (e.target.result) {
           startHtmlAudio(URL.createObjectURL(e.target.result.blob));
         } else {
-          playWavById("mel_1");
+          const tr = list.at(0);
+          startHtmlAudio(tr.file);
         }
       };
     } else {
-      playWavById(currentId);
-    }
-  }
-
-  function playWavById(id) {
-    const tr = list.find(x => x.id === id) || list.at(0);
-    startHtmlAudio(tr.file);
-  }
-
-  function startHtmlAudio(src) {
-    try {
-      const Ctor = window.OrigAudio || window.Audio;
-      audioEl = new Ctor(src);
-      audioEl.loop = true;
-      audioEl.volume = Math.max(0.05, Math.min(1.0, baseVol / 100));
-      audioEl.play().catch(() => {});
-    } catch (e) {}
-  }
-
-  function stop() {
-    if (audioEl) {
-      try { audioEl.pause(); audioEl.currentTime = 0; } catch (e) {}
-      audioEl = null;
-    }
-    if (window.AndroidLock && window.AndroidLock.setRinging) {
-      window.AndroidLock.setRinging(false, baseVol, false);
+      const tr = list.find(x => x.id === currentId) || list.at(0);
+      startHtmlAudio(tr.file);
     }
   }
 

@@ -198,3 +198,55 @@
     }
   }, true);
 })();
+(function attachTestPreviewButton() {
+  setInterval(() => {
+    const tSnd = document.getElementById("tCfgSound");
+    if (tSnd && !tSnd.dataset.hasPreviewBtn) {
+      tSnd.dataset.hasPreviewBtn = "1";
+      const bar = document.createElement("div");
+      bar.style.cssText = "display:flex;gap:6px;margin-bottom:10px;";
+      bar.innerHTML = `
+        <button type="button" id="tCfgPrvBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:38px;">▶️ Прослушать</button>
+        <button type="button" id="tCfgRndBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:38px;">🎲 Случайная</button>
+      `;
+      tSnd.after(bar);
+
+      let playing = false;
+      const prvBtn = document.getElementById("tCfgPrvBtn");
+      prvBtn.onclick = () => {
+        playing = !playing;
+        if (playing) {
+          const v = Number(localStorage.getItem("sa_vol") || 60);
+          if (window.SoundPack) window.SoundPack.play(tSnd.value, v, window.db || null, true);
+          prvBtn.innerText = "⏹ Стоп";
+        } else {
+          if (window.SoundPack) window.SoundPack.stop();
+          prvBtn.innerText = "▶️ Прослушать";
+        }
+      };
+
+      tSnd.addEventListener("change", () => {
+        if (playing && window.SoundPack) {
+          const v = Number(localStorage.getItem("sa_vol") || 60);
+          window.SoundPack.play(tSnd.value, v, window.db || null, true);
+        }
+      });
+
+      document.getElementById("tCfgRndBtn").onclick = () => {
+        tSnd.value = "random";
+        if (playing && window.SoundPack) {
+          const v = Number(localStorage.getItem("sa_vol") || 60);
+          window.SoundPack.play("random", v, window.db || null, true);
+        }
+      };
+
+      const closeBtn = document.getElementById("tCfgClose");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          playing = false;
+          if (window.SoundPack) window.SoundPack.stop();
+        });
+      }
+    }
+  }, 250);
+})();
