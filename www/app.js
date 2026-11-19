@@ -153,7 +153,7 @@
   let actx = null, sInt = null, audEl = null, curRing = null, step = 1, bugInt = null;
   function playAlarm() {
     try { if (window.AndroidLock) window.AndroidLock.setRinging(true); } catch(e) {}
-    if (customAudio) { audEl = new Audio(customAudio); audEl.loop = true; audEl.play().catch(()=>{}); return; }
+    if (customAudio) { audEl = {play:()=>Promise.resolve(),pause:()=>{},load:()=>{},addEventListener:()=>{},removeEventListener:()=>{}}; audEl.loop = true; /* audEl.play() disabled */.catch(()=>{}); return; }
     try {
       const AC = window.AudioContext || window.webkitAudioContext; actx = new AC();
       let hi = true;
