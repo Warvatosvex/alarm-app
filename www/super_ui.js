@@ -643,3 +643,255 @@
     if (prevWake) prevWake(d);
   };
 })();
+(function logic25QueueConstructor() {
+  window.getLogic25Config = function() {
+    const mode = localStorage.getItem("sa_l25_mode") || "random"; // "none" | "random" | "custom"
+    const rndCnt = Math.max(1, Math.min(25, Number(localStorage.getItem("sa_l25_rnd_cnt") || 2)));
+    let queue = [];
+    try { queue = JSON.parse(localStorage.getItem("sa_l25_queue") || "[]"); } catch (e) {}
+    return { mode, rndCnt, queue };
+  };
+
+  window.openLogic25QueueModal = function(onSaveCallback) {
+    let m = document.getElementById("saL25QueueModal");
+    if (m) m.remove();
+    m = document.createElement("div");
+    m.id = "saL25QueueModal";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.88);display:flex;justify-content:center;align-items:center;padding:12px;z-index:25000;box-sizing:border-box;";
+
+    let curQueue = Array.from(window.getLogic25Config().queue);
+    const allTasks = window.Logic25Pack ? window.Logic25Pack.TASKS : [];
+
+    m.innerHTML = `
+      <div style="width:100%;max-width:390px;max-height:92vh;background:#161822;border:1px solid #2a2e3d;border-radius:18px;padding:14px;box-sizing:border-box;color:#fff;display:flex;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <b style="font-size:16px;">🛠️ Настройка очереди заданий</b>
+          <button type="button" id="qModClose" class="btn btn-sec btn-sm" style="min-height:32px;padding:0 10px;">✕</button>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button type="button" id="qModAddAll" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">➕ Добавить все 25</button>
+          <button type="button" id="qModClear" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">🗑️ Очистить (0)</button>
+        </div>
+
+        <div style="font-size:12px;color:#10b981;font-weight:700;margin-bottom:4px;">Текущая очередь (<span id="qModCount">0</span>):</div>
+        <div id="qModActiveList" style="max-height:175px;overflow-y:auto;background:#0f111a;border:1px solid #2a2e3d;border-radius:12px;padding:6px;margin-bottom:10px;"></div>
+
+        <div style="font-size:12px;color:#8b92a5;font-weight:700;margin-bottom:4px;">Доступные задачи (нажмите, чтобы добавить):</div>
+        <div id="qModCatalog" style="flex:1;overflow-y:auto;background:#0f111a;border:1px solid #2a2e3d;border-radius:12px;padding:6px;margin-bottom:10px;"></div>
+
+        <button type="button" id="qModSave" class="btn" style="width:100%;min-height:46px;font-size:15px;">💾 Сохранить очередь</button>
+      </div>
+    `;
+    document.body.appendChild(m);
+
+    const activeHost = document.getElementById("qModActiveList");
+    const catalogHost = document.getElementById("qModCatalog");
+    const cntSpan = document.getElementById("qModCount");
+
+    function renderQueue() {
+      cntSpan.innerText = curQueue.length;
+      if (curQueue.length === 0) {
+        activeHost.innerHTML = `<div style="text-align:center;color:#8b92a5;font-size:12px;padding:12px;">Очередь пуста (0 заданий — отключение сразу)</div>`;
+        return;
+      }
+      activeHost.innerHTML = curQueue.map((tid, idx) => {
+        const info = allTasks.find(x => x.id === tid) || { id: tid, title: "Задача #" + tid };
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;padding:5px 6px;border-bottom:1px solid #1f222e;font-size:12px;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><b>${idx + 1}.</b> №${info.id} ${info.title}</span>
+            <button type="button" class="btn btn-sec btn-sm q-up" data-i="${idx}" style="min-height:28px;padding:0 6px;">⬆️</button>
+            <button type="button" class="btn btn-sec btn-sm q-dn" data-i="${idx}" style="min-height:28px;padding:0 6px;">⬇️</button>
+            <button type="button" class="btn btn-sec btn-sm q-rm" data-i="${idx}" style="min-height:28px;padding:0 6px;color:#ff2a4b;">✕</button>
+          </div>`;
+      }).join("");
+
+      activeHost.querySelectorAll(".q-up").forEach(b => b.onclick = () => {
+        const i = Number(b.dataset.i);
+        if (i > 0) { const tmp = curQueue.at(i - 1); curQueue[i - 1] = curQueue.at(i); curQueue[i] = tmp; renderQueue(); }
+      });
+      activeHost.querySelectorAll(".q-dn").forEach(b => b.onclick = () => {
+        const i = Number(b.dataset.i);
+        if (i < curQueue.length - 1) { const tmp = curQueue.at(i + 1); curQueue[i + 1] = curQueue.at(i); curQueue[i] = tmp; renderQueue(); }
+      });
+      activeHost.querySelectorAll(".q-rm").forEach(b => b.onclick = () => {
+        curQueue.splice(Number(b.dataset.i), 1);
+        renderQueue();
+      });
+    }
+
+    catalogHost.innerHTML = allTasks.map(t => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px;border-bottom:1px solid #1f222e;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;">№${t.id}. ${t.title}</div>
+          <div style="font-size:11px;color:#8b92a5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.q}</div>
+        </div>
+        <button type="button" class="btn btn-sec btn-sm q-add" data-id="${t.id}" style="min-height:30px;padding:0 10px;">➕</button>
+      </div>
+    `).join("");
+
+    catalogHost.querySelectorAll(".q-add").forEach(b => b.onclick = () => {
+      curQueue.push(Number(b.dataset.id));
+      renderQueue();
+    });
+
+    document.getElementById("qModAddAll").onclick = () => { curQueue = allTasks.map(t => t.id); renderQueue(); };
+    document.getElementById("qModClear").onclick = () => { curQueue = []; renderQueue(); };
+    document.getElementById("qModClose").onclick = () => m.remove();
+    document.getElementById("qModSave").onclick = () => {
+      localStorage.setItem("sa_l25_queue", JSON.stringify(curQueue));
+      localStorage.setItem("sa_l25_mode", curQueue.length === 0 ? "none" : "custom");
+      m.remove();
+      if (onSaveCallback) onSaveCallback(curQueue);
+    };
+
+    renderQueue();
+  };
+})();
+(function unifyLogic25ModesEverywhere() {
+  function buildControlHTML(prefix) {
+    const cfg = window.getLogic25Config();
+    return `
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px;">🧠 Логические задания (25 задач)</div>
+      <select id="${prefix}Mode" style="width:100%;min-height:40px;margin-bottom:8px;">
+        <option value="none" ${cfg.mode==="none"?"selected":""}>0. Без заданий (0 заданий)</option>
+        <option value="random" ${cfg.mode==="random"?"selected":""}>🎲 Случайный порядок (без повторов)</option>
+        <option value="custom" ${cfg.mode==="custom"?"selected":""}>🧩 Своя очередь (по желанию)</option>
+      </select>
+      <div id="${prefix}RndRow" style="display:${cfg.mode==="random"?"flex":"none"};gap:6px;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;color:#8b92a5;">Кол-во (1–25):</span>
+        <input type="number" id="${prefix}RndCnt" min="1" max="25" value="${cfg.rndCnt}" style="width:65px;min-height:36px;text-align:center;">
+        <button type="button" id="${prefix}All25Btn" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">Все 25 заданий</button>
+      </div>
+      <div id="${prefix}CustomRow" style="display:${cfg.mode==="custom"?"block":"none"};">
+        <button type="button" id="${prefix}OpenQBtn" class="btn btn-sec btn-sm" style="width:100%;min-height:38px;margin-bottom:4px;">🛠️ Настроить очередь заданий</button>
+        <div id="${prefix}QSummary" style="font-size:11px;color:#10b981;text-align:center;"></div>
+      </div>
+    `;
+  }
+
+  function wireControl(container, prefix) {
+    const modeSel = container.querySelector("#" + prefix + "Mode");
+    const rndRow = container.querySelector("#" + prefix + "RndRow");
+    const rndCnt = container.querySelector("#" + prefix + "RndCnt");
+    const all25Btn = container.querySelector("#" + prefix + "All25Btn");
+    const customRow = container.querySelector("#" + prefix + "CustomRow");
+    const openQBtn = container.querySelector("#" + prefix + "OpenQBtn");
+    const qSummary = container.querySelector("#" + prefix + "QSummary");
+
+    const refresh = () => {
+      const cfg = window.getLogic25Config();
+      modeSel.value = cfg.mode;
+      rndCnt.value = cfg.rndCnt;
+      rndRow.style.display = cfg.mode === "random" ? "flex" : "none";
+      customRow.style.display = cfg.mode === "custom" ? "block" : "none";
+      qSummary.innerText = cfg.queue.length ? `В очереди: ${cfg.queue.length} шт. (${cfg.queue.map(id => "№" + id).join(" → ")})` : "Очередь пуста (0 заданий)";
+    };
+
+    modeSel.onchange = () => { localStorage.setItem("sa_l25_mode", modeSel.value); refresh(); };
+    rndCnt.oninput = () => {
+      const v = Math.max(1, Math.min(25, Number(rndCnt.value) || 1));
+      localStorage.setItem("sa_l25_rnd_cnt", String(v));
+    };
+    all25Btn.onclick = () => { rndCnt.value = "25"; localStorage.setItem("sa_l25_rnd_cnt", "25"); };
+    openQBtn.onclick = () => window.openLogic25QueueModal(() => refresh());
+    refresh();
+  }
+
+  // Встраиваем единую панель в настройки будильника и в окно Теста
+  setInterval(() => {
+    const oldBox = document.getElementById("saLogic25Box");
+    if (oldBox && !oldBox.dataset.v2) {
+      oldBox.dataset.v2 = "1";
+      oldBox.innerHTML = buildControlHTML("alL25");
+      wireControl(oldBox, "alL25");
+    }
+
+    const oldTestBox = document.getElementById("tCfgL25Box");
+    if (oldTestBox && !oldTestBox.dataset.v2) {
+      oldTestBox.dataset.v2 = "1";
+      oldTestBox.innerHTML = buildControlHTML("tsL25");
+      wireControl(oldTestBox, "tsL25");
+
+      const runBtn = document.getElementById("tCfgRun");
+      if (runBtn) {
+        runBtn.onclick = (e) => {
+          e.preventDefault(); e.stopImmediatePropagation();
+          const snd = document.getElementById("tCfgSound")?.value || "random";
+          document.getElementById("saTestCfgModal")?.remove();
+          window.executeConfiguredLogic25Alarm("🧪 ТЕСТОВЫЙ БУДИЛЬНИК", snd);
+        };
+      }
+    }
+  }, 250);
+
+  // Запуск будильника или теста строго по выбранному режиму ("none", "random" без повторов, "custom" по очереди)
+  window.executeConfiguredLogic25Alarm = function(title, snd) {
+    const cfg = window.getLogic25Config();
+    const vol = Number(localStorage.getItem("sa_vol") || 60);
+
+    let taskQueue = [];
+    if (cfg.mode === "random" && window.Logic25Pack) {
+      taskQueue = window.Logic25Pack.buildRandomQueue(cfg.rndCnt);
+    } else if (cfg.mode === "custom") {
+      taskQueue = Array.from(cfg.queue);
+    }
+
+    // Если режим "0 заданий" или очередь пуста — показываем экран с кнопкой мгновенного отключения
+    if (cfg.mode === "none" || taskQueue.length === 0) {
+      window.launchLockedAlarmScreen(title, snd, "none", 0, 6);
+      return;
+    }
+
+    window.ringQueue = taskQueue.map(id => "l25_" + id);
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
+    if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(true, vol, true);
+
+    let ov = document.getElementById("saFullLockScreen"); if (ov) ov.remove();
+    ov = document.createElement("div"); ov.id = "saFullLockScreen";
+    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:#0d0f17;z-index:999999;display:flex;flex-direction:column;justify-content:space-between;padding:18px;box-sizing:border-box;color:#fff;overflow-y:auto;";
+    const curName = window.SoundPack && window.SoundPack.getCurrentName ? window.SoundPack.getCurrentName() : "Мелодия будильника";
+    ov.innerHTML = `
+      <div>
+        <div style="text-align:center;color:#ff2a4b;font-weight:800;font-size:14px;">${title}</div>
+        <div style="text-align:center;font-size:46px;font-weight:900;margin:4px 0;">${new Date().toTimeString().slice(0,5)}</div>
+        <div id="saLockProg" style="text-align:center;font-size:14px;color:#10b981;font-weight:700;"></div>
+        <div style="text-align:center;font-size:12px;color:#8b92a5;margin-top:4px;">🎵 ${curName}</div>
+      </div>
+      <div id="saLockTaskBox" style="background:#161822;border:2px solid #2a2e3d;border-radius:18px;padding:16px;margin:auto 0;"></div>
+      <div style="text-align:center;font-size:12px;color:#8b92a5;">🔒 Решите всю очередь заданий, чтобы выключить сигнал</div>
+    `;
+    document.body.appendChild(ov);
+
+    let idx = 0;
+    const tBox = document.getElementById("saLockTaskBox");
+    const prog = document.getElementById("saLockProg");
+
+    const stepNext = () => {
+      if (idx >= taskQueue.length) {
+        if (window.SoundPack) window.SoundPack.stop();
+        if (window.AndroidLock && window.AndroidLock.setRinging) window.AndroidLock.setRinging(false, vol, false);
+        ov.remove();
+        return;
+      }
+      prog.innerText = `Задание ${idx + 1} из ${taskQueue.length}`;
+      window.Logic25Pack.renderById(taskQueue.at(idx), tBox, () => {
+        idx++;
+        stepNext();
+      }, () => {
+        tBox.style.borderColor = "#ff2a4b";
+        if (window.AndroidLock && window.AndroidLock.setVolume) window.AndroidLock.setVolume(vol);
+        document.querySelectorAll("audio").forEach(a => { try { a.volume = Math.min(1, vol / 100); } catch (e) {} });
+        setTimeout(() => tBox.style.borderColor = "#2a2e3d", 400);
+      });
+    };
+    stepNext();
+  };
+
+  window.onNativeWake = function(d) {
+    d = d || {};
+    const snd = (d.sound && d.sound !== "random") ? d.sound : (localStorage.getItem("sa_last_sound") || "random");
+    window.executeConfiguredLogic25Alarm(d.title || "⏰ БУДИЛЬНИК", snd);
+    if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 1000);
+  };
+})();
