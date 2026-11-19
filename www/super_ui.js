@@ -250,3 +250,111 @@
     }
   }, 250);
 })();
+(function persistRandomizerAndTestShuffle() {
+  setInterval(() => {
+    // 1. В настройках будильника восстанавливаем и сохраняем пункт "🎲 Случайная мелодия"
+    document.querySelectorAll(".sa-mel-sel").forEach(sel => {
+      if (!sel.dataset.rndPersist) {
+        sel.dataset.rndPersist = "1";
+        if (sel.options.length > 0) {
+          sel.options.text = "🎲 Случайная мелодия";
+          sel.options.value = "random";
+        }
+        const modal = sel.closest(".modal");
+        const timeIn = modal ? modal.querySelector('input[type="time"], select') : null;
+        const map = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+        const savedVal = (timeIn && timeIn.value && map[timeIn.value]) ? map[timeIn.value] : (localStorage.getItem("sa_last_sound") || "random");
+        sel.value = savedVal;
+
+        const saveSelection = () => {
+          localStorage.setItem("sa_last_sound", sel.value);
+          if (timeIn && timeIn.value) {
+            const curMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+            curMap[timeIn.value] = sel.value;
+            localStorage.setItem("sa_per_alarm_snd", JSON.stringify(curMap));
+          }
+        };
+        sel.addEventListener("change", saveSelection);
+        const rndBtn = sel.parentElement ? sel.parentElement.querySelector(".m-rnd") : null;
+        if (rndBtn) rndBtn.addEventListener("click", () => { sel.value = "random"; saveSelection(); });
+      }
+    });
+
+    // 2. В окне Теста будильника добавляем кнопку "🔀 Случайный звук" с отображением названия/номера
+    const tSnd = document.getElementById("tCfgSound");
+    if (tSnd && !tSnd.dataset.rndTestBound) {
+      tSnd.dataset.rndTestBound = "1";
+      if (tSnd.options.length > 0) {
+        tSnd.options.text = "🎲 Случайная мелодия";
+        tSnd.options.value = "random";
+      }
+      tSnd.value = localStorage.getItem("sa_last_sound") || "random";
+
+      const nextEl = tSnd.nextElementSibling;
+      if (nextEl && (nextEl.querySelector("#tCfgPrvBtn") || nextEl.querySelector("#tCfgShuffleBtn"))) {
+        nextEl.remove();
+      }
+
+      const panel = document.createElement("div");
+      panel.style.cssText = "margin-bottom:10px;";
+      panel.innerHTML = `
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <button type="button" id="tCfgPrvBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:38px;">▶️ Слушать</button>
+          <button type="button" id="tCfgShuffleBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:38px;">🔀 Случайный звук</button>
+        </div>
+        <div id="tCfgTrackInfo" style="font-size:12px;color:#10b981;text-align:center;min-height:18px;font-weight:700;"></div>
+      `;
+      tSnd.after(panel);
+
+      let previewActive = false;
+      const prvBtn = document.getElementById("tCfgPrvBtn");
+      const infoLbl = document.getElementById("tCfgTrackInfo");
+
+      const showTrackInfo = (tr) => {
+        if (tr && tr.name) infoLbl.innerText = "🎵 " + tr.name;
+      };
+
+      prvBtn.onclick = () => {
+        previewActive = !previewActive;
+        const v = Number(localStorage.getItem("sa_vol") || 60);
+        if (previewActive) {
+          const tr = window.SoundPack ? window.SoundPack.play(tSnd.value, v, window.db || null, true) : null;
+          prvBtn.innerText = "⏹ Стоп";
+          showTrackInfo(tr);
+        } else {
+          if (window.SoundPack) window.SoundPack.stop();
+          prvBtn.innerText = "▶️ Слушать";
+          infoLbl.innerText = "";
+        }
+      };
+
+      document.getElementById("tCfgShuffleBtn").onclick = () => {
+        const v = Number(localStorage.getItem("sa_vol") || 60);
+        if (window.SoundPack) {
+          const tr = window.SoundPack.play("random", v, window.db || null, true);
+          previewActive = true;
+          prvBtn.innerText = "⏹ Стоп";
+          if (tr && tr.id) tSnd.value = tr.id;
+          showTrackInfo(tr);
+        }
+      };
+
+      tSnd.addEventListener("change", () => {
+        localStorage.setItem("sa_last_sound", tSnd.value);
+        if (previewActive && window.SoundPack) {
+          const v = Number(localStorage.getItem("sa_vol") || 60);
+          const tr = window.SoundPack.play(tSnd.value, v, window.db || null, true);
+          showTrackInfo(tr);
+        }
+      });
+
+      const closeBtn = document.getElementById("tCfgClose");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          previewActive = false;
+          if (window.SoundPack) window.SoundPack.stop();
+        });
+      }
+    }
+  }, 250);
+})();
