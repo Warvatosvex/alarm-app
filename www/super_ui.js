@@ -2183,3 +2183,175 @@
     });
   }, 300);
 })();
+(function rebuildInteractiveTimerTab() {
+  let totalSeconds = Number(localStorage.getItem("sa_timer_default_sec") || 300);
+  let remainingSeconds = totalSeconds;
+  let timerInterval = null;
+  let isRunning = false;
+
+  function formatHMS(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function syncInputsFromTotal() {
+    const hIn = document.getElementById("tmInH");
+    const mIn = document.getElementById("tmInM");
+    const sIn = document.getElementById("tmInS");
+    if (!hIn || !mIn || !sIn) return;
+    hIn.value = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+    mIn.value = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+    sIn.value = String(totalSeconds % 60).padStart(2, "0");
+  }
+
+  function updateTimerDisplay() {
+    const disp = document.getElementById("tmMainDisplay");
+    if (disp) disp.innerText = formatHMS(remainingSeconds);
+    const startBtn = document.getElementById("tmBtnStart");
+    if (startBtn) {
+      startBtn.innerText = isRunning ? "⏸ Пауза" : "▶️ Старт";
+      startBtn.style.background = isRunning ? "#f59e0b" : "#10b981";
+    }
+  }
+
+  function stopTimerLoop() {
+    isRunning = false;
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    updateTimerDisplay();
+  }
+
+  function setNewDuration(sec) {
+    stopTimerLoop();
+    totalSeconds = Math.max(1, Math.min(86399, Math.floor(sec)));
+    remainingSeconds = totalSeconds;
+    localStorage.setItem("sa_timer_default_sec", String(totalSeconds));
+    syncInputsFromTotal();
+    updateTimerDisplay();
+  }
+
+  function showTimerFinishOverlay() {
+    const snd = localStorage.getItem("sa_timer_sound") || localStorage.getItem("sa_last_sound") || "random";
+    const vol = Number(localStorage.getItem("sa_vol") || 75);
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
+
+    let ov = document.getElementById("saTimerDoneOverlay");
+    if (ov) ov.remove();
+    ov = document.createElement("div");
+    ov.id = "saTimerDoneOverlay";
+    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(11,13,20,0.96);z-index:999998;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;box-sizing:border-box;color:#fff;text-align:center;";
+    const trackName = window.SoundPack && window.SoundPack.getCurrentName ? window.SoundPack.getCurrentName() : "Мелодия таймера";
+
+    ov.innerHTML = `
+      <div style="font-size:15px;font-weight:800;letter-spacing:1.5px;color:#10b981;margin-bottom:10px;">⏳ ВРЕМЯ ВЫШЛО</div>
+      <div style="font-size:64px;font-weight:900;margin-bottom:10px;">00:00:00</div>
+      <div style="font-size:13px;color:#94a3b8;margin-bottom:28px;">🎵 ${trackName}</div>
+      <button type="button" id="saTimerStopBtn" style="width:100%;max-width:340px;min-height:68px;border-radius:18px;border:none;background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);color:#fff;font-size:21px;font-weight:900;box-shadow:0 10px 26px rgba(239,68,68,0.45);cursor:pointer;">
+        ⏹ Остановить
+      </button>`;
+    document.body.appendChild(ov);
+
+    document.getElementById("saTimerStopBtn").onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      ov.remove();
+      remainingSeconds = totalSeconds;
+      updateTimerDisplay();
+    };
+  }
+  function startTimerLoop() {
+    if (isRunning) return;
+    if (remainingSeconds <= 0) remainingSeconds = totalSeconds;
+    isRunning = true;
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
+      if (!isRunning) return;
+      remainingSeconds--;
+      updateTimerDisplay();
+      if (remainingSeconds <= 0) { stopTimerLoop(); showTimerFinishOverlay(); }
+    }, 1000);
+  }
+
+  function mountTimerUI(container) {
+    if (!container || container.dataset.customTimerReady) return;
+    container.dataset.customTimerReady = "1";
+    const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
+    const savedSnd = localStorage.getItem("sa_timer_sound") || "random";
+
+    container.innerHTML = `
+      <div style="padding:14px;border-radius:18px;background:#161822;border:1px solid #2a2e3d;color:#fff;text-align:center;pointer-events:auto;">
+        <div id="tmMainDisplay" title="Нажмите для ввода" style="font-size:50px;font-weight:900;letter-spacing:2px;margin:6px 0 12px;cursor:pointer;">${formatHMS(remainingSeconds)}</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+          <div style="background:#1f222e;padding:8px;border-radius:12px;border:1px solid #2a2e3d;">
+            <div style="font-size:11px;color:#8b92a5;margin-bottom:4px;">Часы</div>
+            <button type="button" class="btn btn-sec btn-sm tm-step" data-unit="h" data-d="1" style="width:100%;min-height:34px;font-size:18px;">+</button>
+            <input type="number" id="tmInH" min="0" max="23" value="00" style="width:100%;text-align:center;font-size:20px;font-weight:800;margin:4px 0;min-height:38px;background:#12141d;color:#fff;border:1px solid #2a2e3d;border-radius:8px;">
+            <button type="button" class="btn btn-sec btn-sm tm-step" data-unit="h" data-d="-1" style="width:100%;min-height:34px;font-size:18px;">−</button>
+          </div>
+          <div style="background:#1f222e;padding:8px;border-radius:12px;border:1px solid #2a2e3d;">
+            <div style="font-size:11px;color:#8b92a5;margin-bottom:4px;">Минуты</div>
+            <button type="button" class="btn btn-sec btn-sm tm-step" data-unit="m" data-d="1" style="width:100%;min-height:34px;font-size:18px;">+</button>
+            <input type="number" id="tmInM" min="0" max="59" value="05" style="width:100%;text-align:center;font-size:20px;font-weight:800;margin:4px 0;min-height:38px;background:#12141d;color:#fff;border:1px solid #2a2e3d;border-radius:8px;">
+            <button type="button" class="btn btn-sec btn-sm tm-step" data-unit="m" data-d="-1" style="width:100%;min-height:34px;font-size:18px;">−</button>
+          </div>
+          <div style="background:#1f222e;padding:8px;border-radius:12px;border:1px solid #2a2e3d;">
+            <div style="font-size:11px;color:#8b92a5;margin-bottom:4px;">Секунды</div>
+            <button type="button" class="btn btn-sec btn-sm tm-step" data-unit="s" data-d="5" style="width:100%;min-height:34px;font-size:18px;">+</button>
+            <input type="number" id="tmInS" min="0" max="59" value="00" style="width:100%;text-align:center;font-size:20px;font-weight:800;margin:4px 0;min-height:38px;background:#12141d;color:#fff;border:1px solid #2a2e3d;border-radius:8px;">
+            <button type="button" class="btn btn-sec btn-sm tm-step" data-unit="s" data-d="-5" style="width:100%;min-height:34px;font-size:18px;">−</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button type="button" class="btn btn-sec tm-preset" data-sec="60" style="flex:1;min-height:40px;font-weight:700;">1 мин</button>
+          <button type="button" class="btn btn-sec tm-preset" data-sec="300" style="flex:1;min-height:40px;font-weight:700;">5 мин</button>
+          <button type="button" class="btn btn-sec tm-preset" data-sec="600" style="flex:1;min-height:40px;font-weight:700;">10 мин</button>
+        </div>
+        <div style="margin-bottom:12px;text-align:left;">
+          <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">🎵 Мелодия таймера (120 треков)</label>
+          <select id="tmSndSel" style="width:100%;min-height:40px;"><option value="random">🎲 Случайная мелодия</option>${list120}</select>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button type="button" id="tmBtnStart" class="btn" style="flex:2;min-height:50px;font-size:17px;font-weight:800;background:#10b981;border:none;color:#fff;">▶️ Старт</button>
+          <button type="button" id="tmBtnReset" class="btn btn-sec" style="flex:1;min-height:50px;font-size:16px;font-weight:700;">🔄 Сброс</button>
+        </div>
+      </div>`;
+
+    syncInputsFromTotal();
+    const sndSel = document.getElementById("tmSndSel"); sndSel.value = savedSnd;
+    sndSel.onchange = () => localStorage.setItem("sa_timer_sound", sndSel.value);
+
+    const readInputs = () => {
+      const h = Math.max(0, Math.min(23, Number(document.getElementById("tmInH").value) || 0));
+      const m = Math.max(0, Math.min(59, Number(document.getElementById("tmInM").value) || 0));
+      const s = Math.max(0, Math.min(59, Number(document.getElementById("tmInS").value) || 0));
+      setNewDuration(h * 3600 + m * 60 + s);
+    };
+    ["tmInH", "tmInM", "tmInS"].forEach(id => document.getElementById(id).addEventListener("change", readInputs));
+
+    container.querySelectorAll(".tm-step").forEach(btn => {
+      btn.onclick = () => {
+        let h = Number(document.getElementById("tmInH").value) || 0, m = Number(document.getElementById("tmInM").value) || 0, s = Number(document.getElementById("tmInS").value) || 0;
+        const d = Number(btn.dataset.d);
+        if (btn.dataset.unit === "h") h = (h + d + 24) % 24;
+        if (btn.dataset.unit === "m") m = (m + d + 60) % 60;
+        if (btn.dataset.unit === "s") s = (s + d + 60) % 60;
+        setNewDuration(h * 3600 + m * 60 + s);
+      };
+    });
+    container.querySelectorAll(".tm-preset").forEach(btn => { btn.onclick = () => setNewDuration(Number(btn.dataset.sec)); });
+    document.getElementById("tmMainDisplay").onclick = () => { document.getElementById("tmInM").focus(); document.getElementById("tmInM").select(); };
+    document.getElementById("tmBtnStart").onclick = () => { if (isRunning) stopTimerLoop(); else startTimerLoop(); };
+    document.getElementById("tmBtnReset").onclick = () => { stopTimerLoop(); remainingSeconds = totalSeconds; updateTimerDisplay(); };
+  }
+
+  setInterval(() => {
+    const byId = document.getElementById("timerTab") || document.getElementById("tab-timer") || document.getElementById("timerSection");
+    if (byId && byId.offsetParent !== null && !byId.dataset.customTimerReady) { mountTimerUI(byId); return; }
+    document.querySelectorAll("section, .tab-content, .view, div").forEach(el => {
+      if (el.dataset.customTimerReady || el.offsetParent === null) return;
+      const t = el.innerText || "";
+      if (t.includes("00:05:00") && t.includes("1 мин") && t.includes("5 мин") && t.length < 250) mountTimerUI(el);
+    });
+  }, 250);
+})();
