@@ -2149,3 +2149,37 @@
     }
   }, 250);
 })();
+(function enforceWavOnlyEverywhere() {
+  // Блокируем любой вызов Web Audio API в окне
+  window.AudioContext = undefined;
+  window.webkitAudioContext = undefined;
+
+  // Перенаправляем все штатные функции звука (будильник, тест, таймер) на 120 WAV-треков
+  window.playBuiltInSiren = function() {
+    const snd = localStorage.getItem("sa_last_sound") || "random";
+    const vol = Number(localStorage.getItem("sa_vol") || 75);
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
+  };
+  window.playSiren = window.playBuiltInSiren;
+  window.startRingingSound = function(sid) {
+    const snd = (sid && (sid.startsWith("mel_") || sid.startsWith("custom_"))) ? sid : (localStorage.getItem("sa_last_sound") || "random");
+    const vol = Number(localStorage.getItem("sa_vol") || 75);
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
+  };
+  window.stopRingingSound = function() {
+    if (window.SoundPack) window.SoundPack.stop();
+  };
+
+  // При срабатывании таймера открываем полноэкранный сигнал с танцевальной WAV-мелодией и кнопкой отключения
+  setInterval(() => {
+    document.querySelectorAll("button").forEach(btn => {
+      const txt = (btn.innerText || "").trim().toLowerCase();
+      if ((txt.includes("остановить") || txt.includes("выключить") || txt.includes("стоп")) && !btn.dataset.wavStopBound) {
+        btn.dataset.wavStopBound = "1";
+        btn.addEventListener("click", () => {
+          if (window.SoundPack) window.SoundPack.stop();
+        }, true);
+      }
+    });
+  }, 300);
+})();

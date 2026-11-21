@@ -1,30 +1,34 @@
 window.SoundPack = (function() {
-  const styles = Array.of(
-    "Хаус-бит","Поп-дэнс рифф","Фанк-грув","Ню-диско","Тропикал-дэнс","Электро-баунс"
-  );
+  const styles = [
+    "Хаус-бит", "Поп-дэнс рифф", "Фанк-грув", "Ню-диско", "Тропикал-дэнс", "Электро-баунс"
+  ];
 
-  const list = Array.from({length: 120}, (_, i) => {
+  const list = Array.from({ length: 120 }, (_, i) => {
     const num = String(i + 1).padStart(3, "0");
     return {
       id: "mel_" + (i + 1),
-      name: "Мелодия " + (i + 1) + " — " + styles.at(i % styles.length),
+      name: "Мелодия " + (i + 1) + " — " + styles[i % styles.length],
       file: "sounds/alarm_" + num + ".wav"
     };
   });
 
-  function pickRandomNoConsecutive() {
-    const lastId = localStorage.getItem("sa_prev_played_mel") || "";
-    let pool = list.filter(m => m.id !== lastId);
+  function pickRandomNoRepeat() {
+    const prevId = localStorage.getItem("sa_prev_played_mel") || "";
+    let pool = list.filter(m => m.id !== prevId);
     if (pool.length === 0) pool = list;
-    const chosen = pool.at(Math.floor(Math.random() * pool.length));
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
     localStorage.setItem("sa_prev_played_mel", chosen.id);
     return chosen;
   }
 
-  let audioEl = null, activeBlobUrl = null, baseVol = 60, currentTrack = list.at(0), isShouldPlay = false;
+  let audioEl = null;
+  let activeBlobUrl = null;
+  let isPlaying = false;
+  let baseVol = 75;
+  let currentTrack = list[0];
 
   function stop() {
-    isShouldPlay = false;
+    isPlaying = false;
     if (audioEl) {
       try {
         audioEl.onended = null;
@@ -40,14 +44,18 @@ window.SoundPack = (function() {
       try { URL.revokeObjectURL(activeBlobUrl); } catch (e) {}
       activeBlobUrl = null;
     }
+    // Останавливаем любые посторонние <audio> на странице
+    document.querySelectorAll("audio").forEach(el => {
+      try { el.pause(); el.currentTime = 0; } catch (e) {}
+    });
     if (window.AndroidLock && window.AndroidLock.setRinging) {
       window.AndroidLock.setRinging(false, baseVol, false);
     }
   }
 
-  function startHtmlAudio(src, isBlob) {
+  function startWavFile(src, isBlob) {
     stop();
-    isShouldPlay = true;
+    isPlaying = true;
     if (isBlob) activeBlobUrl = src;
     try {
       audioEl = document.createElement("audio");
@@ -56,16 +64,16 @@ window.SoundPack = (function() {
       audioEl.preload = "auto";
       audioEl.volume = Math.max(0.05, Math.min(1.0, baseVol / 100));
 
-      // Двойная гарантия зацикливания до момента явной остановки
       audioEl.onended = function() {
-        if (isShouldPlay && audioEl) {
+        if (isPlaying && audioEl) {
           audioEl.currentTime = 0;
           audioEl.play().catch(() => {});
         }
       };
+
       audioEl.onerror = function() {
-        if (isShouldPlay && src !== list.at(0).file) {
-          startHtmlAudio(list.at(0).file, false);
+        if (isPlaying && src !== list[0].file) {
+          startWavFile(list[0].file, false);
         }
       };
 
@@ -76,45 +84,42 @@ window.SoundPack = (function() {
 
   function play(id, volPercent, db, isPreview) {
     stop();
-    baseVol = Number(volPercent || localStorage.getItem("sa_vol") || 60);
-    const hasTask = !(window.ringQueue && window.ringQueue.at(0) === "none");
+    baseVol = Math.max(10, Math.min(100, Number(volPercent || localStorage.getItem("sa_vol") || 75)));
+    const hasTask = !(window.ringQueue && window.ringQueue[0] === "none");
     if (!isPreview && window.AndroidLock && window.AndroidLock.setRinging) {
       window.AndroidLock.setRinging(true, baseVol, hasTask);
     }
 
-    // Если передан конкретный ID мелодии (mel_1 .. mel_120) — играем строго её
     if (id && typeof id === "string" && id.startsWith("mel_")) {
       const exact = list.find(x => x.id === id);
       if (exact) {
         currentTrack = exact;
         localStorage.setItem("sa_prev_played_mel", exact.id);
-        startHtmlAudio(exact.file, false);
+        startWavFile(exact.file, false);
         return currentTrack;
       }
     }
 
-    // Пользовательский файл из IndexedDB
     if (id && typeof id === "string" && id.startsWith("custom_") && db) {
-      currentTrack = { id: id, name: "Своя мелодия (MP3/WAV)", file: "" };
+      currentTrack = { id: id, name: "Свой трек", file: "" };
       try {
         db.transaction("tracks", "readonly").objectStore("tracks").get(id).onsuccess = e => {
           if (e.target.result && e.target.result.blob) {
-            startHtmlAudio(URL.createObjectURL(e.target.result.blob), true);
+            startWavFile(URL.createObjectURL(e.target.result.blob), true);
           } else {
-            currentTrack = list.at(0);
-            startHtmlAudio(currentTrack.file, false);
+            currentTrack = pickRandomNoRepeat();
+            startWavFile(currentTrack.file, false);
           }
         };
-      } catch (err) {
-        currentTrack = list.at(0);
-        startHtmlAudio(currentTrack.file, false);
+      } catch (e) {
+        currentTrack = pickRandomNoRepeat();
+        startWavFile(currentTrack.file, false);
       }
       return currentTrack;
     }
 
-    // Режим "random" или пустое значение — случайная без повтора предыдущей подряд
-    currentTrack = pickRandomNoConsecutive();
-    startHtmlAudio(currentTrack.file, false);
+    currentTrack = pickRandomNoRepeat();
+    startWavFile(currentTrack.file, false);
     return currentTrack;
   }
 
