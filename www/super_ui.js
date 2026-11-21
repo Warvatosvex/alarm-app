@@ -1208,3 +1208,185 @@
     if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 1000);
   };
 })();
+(function lockScreenZeroTaskAlarm() {
+  // Сохраняем привязку мелодии и громкости к конкретному будильнику при сохранении
+  document.addEventListener("click", function(e) {
+    const btn = e.target.closest("button");
+    if (!btn || !btn.innerText || !btn.innerText.includes("Сохранить")) return;
+    const modal = btn.closest(".modal");
+    if (!modal || modal.id === "saTestCfgModal") return;
+
+    const melSel = modal.querySelector(".sa-mel-sel");
+    const volRng = modal.querySelector(".m-vr");
+    const tIn = modal.querySelector('input[type="time"]');
+    let tKey = tIn && tIn.value ? tIn.value.slice(0, 5) : "";
+    if (!tKey) {
+      const sels = Array.from(modal.querySelectorAll("select")).filter(s => !s.classList.contains("sa-mel-sel") && !s.classList.contains("p15-mode") && !s.classList.contains("p15-single-sel"));
+      if (sels.length >= 2 && /^\d{1,2}$/.test(sels.at(0).value) && /^\d{1,2}$/.test(sels.at(1).value)) {
+        tKey = String(sels.at(0).value).padStart(2, "0") + ":" + String(sels.at(1).value).padStart(2, "0");
+      }
+    }
+
+    const cfg = window.getProfile25Config ? window.getProfile25Config("alarm") : { mode: "none" };
+    if (tKey) {
+      if (melSel) {
+        const sMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+        sMap[tKey] = melSel.value;
+        localStorage.setItem("sa_per_alarm_snd", JSON.stringify(sMap));
+      }
+      if (volRng) {
+        const vMap = JSON.parse(localStorage.getItem("sa_per_alarm_vol") || "{}");
+        vMap[tKey] = Math.max(10, Math.min(100, Number(volRng.value) || 75));
+        localStorage.setItem("sa_per_alarm_vol", JSON.stringify(vMap));
+      }
+      const zMap = JSON.parse(localStorage.getItem("sa_zero_alarms") || "{}");
+      if (cfg.mode === "none") zMap[tKey] = true; else delete zMap[tKey];
+      localStorage.setItem("sa_zero_alarms", JSON.stringify(zMap));
+    }
+    if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 200);
+  }, true);
+
+  // Полноэкранный экран поверх блокировки для режима "0 заданий"
+  window.showFullLockScreenZeroAlarm = function(title, labelText, snd, targetVol, alarmTimeKey) {
+    const vol = Math.max(10, Math.min(100, Number(targetVol) || (window.getProfileVolume ? window.getProfileVolume("alarm") : 75)));
+    window.ringQueue = ["none"];
+
+    if (window.SoundPack) window.SoundPack.play(snd, vol, window.db || null, false);
+    if (window.AndroidLock && window.AndroidLock.setRinging) {
+      window.AndroidLock.setRinging(true, vol, false);
+    }
+
+    let ov = document.getElementById("saFullLockScreen");
+    if (ov) ov.remove();
+    ov = document.createElement("div");
+    ov.id = "saFullLockScreen";
+    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:linear-gradient(180deg,#0b0d14 0%,#141826 100%);z-index:999999;display:flex;flex-direction:column;justify-content:space-between;padding:24px 20px;box-sizing:border-box;color:#fff;";
+
+    const curName = window.SoundPack && window.SoundPack.getCurrentName ? window.SoundPack.getCurrentName() : "Мелодия будильника";
+    const mins = Math.max(1, Number(localStorage.getItem("sa_snooze_min") || 5));
+
+    ov.innerHTML = `
+      <div style="text-align:center;margin-top:16px;">
+        <div style="font-size:13px;font-weight:800;letter-spacing:1.5px;color:#10b981;text-transform:uppercase;">${title}</div>
+        <div id="saZeroLiveClock" style="font-size:68px;font-weight:900;line-height:1.05;margin:12px 0 8px;letter-spacing:-1px;">${new Date().toTimeString().slice(0,5)}</div>
+        <div style="font-size:20px;font-weight:700;color:#f1f5f9;margin-bottom:8px;">${labelText || "Утренний подъём"}</div>
+        <div style="display:inline-block;padding:6px 12px;border-radius:20px;background:rgba(255,255,255,0.07);font-size:12px;color:#cbd5e1;">
+          🎵 ${curName} • 🔊 ${vol}%
+        </div>
+      </div>
+
+      <div id="saLockTaskBox" style="width:100%;max-width:400px;margin:0 auto 12px;">
+        <button type="button" id="saBigDismissBtn" style="width:100%;min-height:74px;border-radius:20px;border:none;background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);color:#fff;font-size:22px;font-weight:900;letter-spacing:0.5px;box-shadow:0 10px 28px rgba(239,68,68,0.45);cursor:pointer;margin-bottom:14px;">
+          🔕 Выключить будильник
+        </button>
+        <button type="button" id="saBigSnoozeBtn" style="width:100%;min-height:52px;border-radius:16px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:16px;font-weight:700;cursor:pointer;">
+          💤 Отложить на ${mins} мин
+        </button>
+      </div>
+    `;
+    document.body.appendChild(ov);
+
+    const clockInterval = setInterval(() => {
+      const el = document.getElementById("saZeroLiveClock");
+      if (el) el.innerText = new Date().toTimeString().slice(0, 5);
+      else clearInterval(clockInterval);
+    }, 1000);
+
+    const stopAndDismiss = (deactivateOneTime) => {
+      clearInterval(clockInterval);
+      if (window.SoundPack) window.SoundPack.stop();
+      if (window.AndroidLock && window.AndroidLock.setRinging) {
+        window.AndroidLock.setRinging(false, vol, false);
+      }
+      if (deactivateOneTime && alarmTimeKey) {
+        try {
+          let list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+          let changed = false;
+          list.forEach(a => {
+            if (a && a.time === alarmTimeKey && (!Array.isArray(a.days) || a.days.length === 0)) {
+              a.enabled = false;
+              changed = true;
+            }
+          });
+          if (changed) {
+            localStorage.setItem("sa_alarms", JSON.stringify(list));
+            localStorage.setItem("alarms", JSON.stringify(list));
+          }
+        } catch (e) {}
+      }
+      ov.remove();
+      if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 300);
+    };
+
+    document.getElementById("saBigDismissBtn").onclick = () => stopAndDismiss(true);
+    document.getElementById("saBigSnoozeBtn").onclick = () => {
+      stopAndDismiss(false);
+      setTimeout(() => {
+        window.showFullLockScreenZeroAlarm("💤 ПОВТОР БУДИЛЬНИКА", labelText, snd, vol, alarmTimeKey);
+      }, mins * 60000);
+    };
+  };
+
+  // Обновляем планировщик и обработчик пробуждения для точного запуска режима "0 заданий" поверх блокировки
+  window.pushExactAlarmSchedule = function() {
+    if (!window.AndroidLock || !window.AndroidLock.scheduleNextAlarmWithData) return;
+    let list = [];
+    try {
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) list = alarms;
+      else list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+    } catch (e) {}
+
+    const sndMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}");
+    const volMap = JSON.parse(localStorage.getItem("sa_per_alarm_vol") || "{}");
+    const zeroMap = JSON.parse(localStorage.getItem("sa_zero_alarms") || "{}");
+    const globalCfg = window.getProfile25Config ? window.getProfile25Config("alarm") : { mode: "none" };
+    const fallbackSnd = localStorage.getItem("sa_last_sound") || "random";
+    const fallbackVol = window.getProfileVolume ? window.getProfileVolume("alarm") : 75;
+    const now = new Date();
+    let bestTs = 0, bestPayload = null;
+
+    list.filter(a => a && a.enabled).forEach(a => {
+      const parts = String(a.time || "07:00").split(":");
+      const hh = Number(parts.at(0)) || 0, mm = Number(parts.at(1)) || 0;
+      const tNorm = String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+      const days = Array.isArray(a.days) ? a.days : [];
+
+      for (let d = 0; d <= 7; d++) {
+        const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, hh, mm, 0, 0);
+        if (cand.getTime() > now.getTime() && (days.length === 0 || days.includes(cand.getDay()))) {
+          if (bestTs === 0 || cand.getTime() < bestTs) {
+            bestTs = cand.getTime();
+            const isZ = Boolean(zeroMap[tNorm] || zeroMap[a.time] || globalCfg.mode === "none");
+            bestPayload = {
+              title: "⏰ БУДИЛЬНИК",
+              label: a.label || a.name || ("Будильник на " + tNorm),
+              timeKey: tNorm,
+              sound: sndMap[tNorm] || sndMap[a.time] || (a.sound && a.sound.startsWith("mel_") ? a.sound : fallbackSnd),
+              vol: volMap[tNorm] || volMap[a.time] || fallbackVol,
+              isZero: isZ
+            };
+          }
+          break;
+        }
+      }
+    });
+
+    if (bestTs > 0 && bestPayload) {
+      window.AndroidLock.scheduleNextAlarmWithData(bestTs, JSON.stringify(bestPayload));
+    } else {
+      window.AndroidLock.scheduleNextAlarmWithData(0, "{}");
+    }
+  };
+
+  window.onNativeWake = function(d) {
+    d = d || {};
+    const cfg = window.getProfile25Config ? window.getProfile25Config("alarm") : { mode: "none" };
+    const snd = d.sound || localStorage.getItem("sa_last_sound") || "random";
+    const vol = Number(d.vol) || (window.getProfileVolume ? window.getProfileVolume("alarm") : 75);
+    if (d.isZero || cfg.mode === "none") {
+      window.showFullLockScreenZeroAlarm(d.title || "⏰ БУДИЛЬНИК", d.label || "", snd, vol, d.timeKey || "");
+    } else if (window.executeStrict25AlarmByProfile) {
+      window.executeStrict25AlarmByProfile("alarm", d.title || "⏰ БУДИЛЬНИК", snd, "");
+    }
+  };
+})();
