@@ -2809,3 +2809,226 @@
   removeLegacyBox();
   setInterval(removeLegacyBox, 150);
 })();
+(function rebuildSeriesTab25And120() {
+  const DAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+  let serDays =;
+  let serQueue = [];
+
+  function calcSeriesTimes(startStr, endStr, stepMin) {
+    const [sh, sm] = String(startStr || "06:00").split(":").map(Number);
+    const [eh, em] = String(endStr || "07:20").split(":").map(Number);
+    const step = Math.max(1, Math.min(180, Number(stepMin) || 10));
+    let startM = (sh || 0) * 60 + (sm || 0);
+    let endM = (eh || 0) * 60 + (em || 0);
+    if (endM < startM) endM += 1440;
+
+    const times = [];
+    for (let cur = startM; cur <= endM && times.length < 60; cur += step) {
+      const mNorm = cur % 1440;
+      const hh = String(Math.floor(mNorm / 60)).padStart(2, "0");
+      const mm = String(mNorm % 60).padStart(2, "0");
+      times.push(`${hh}:${mm}`);
+    }
+    return times;
+  }
+
+  function diffLabel10(v) {
+    v = Math.max(1, Math.min(10, Number(v) || 5));
+    if (v <= 3) return `${v}/10 — Легко`;
+    if (v <= 7) return `${v}/10 — Средне`;
+    return `${v}/10 — Хардкор`;
+  }
+
+  function mountModernSeriesUI(host) {
+    if (!host || host.dataset.modernSeries25) return;
+    host.dataset.modernSeries25 = "1";
+
+    const allTasks = (window.Logic25Pack || window.Logic15Pack)?.TASKS || [];
+    const singleOpts = allTasks.map(t => `<option value="${t.id}">№${t.id}. ${t.title}</option>`).join("");
+    const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
+    const defVol = window.getProfileVolume ? window.getProfileVolume("alarm") : 75;
+    const defDiff = window.getProfileDiff10 ? window.getProfileDiff10("alarm") : 5;
+
+    host.innerHTML = `
+      <div style="padding:14px;border-radius:18px;background:#161822;border:1px solid #2a2e3d;color:#fff;pointer-events:auto;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:10px;">📚 Серия будильников по диапазону</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div>
+            <label style="display:block;font-size:11px;color:#8b92a5;margin-bottom:3px;">Начало</label>
+            <input type="time" id="ser25Start" value="06:00" style="width:100%;min-height:42px;font-size:18px;font-weight:800;text-align:center;">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#8b92a5;margin-bottom:3px;">Конец</label>
+            <input type="time" id="ser25End" value="07:20" style="width:100%;min-height:42px;font-size:18px;font-weight:800;text-align:center;">
+          </div>
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <label style="display:block;font-size:11px;color:#8b92a5;margin-bottom:3px;">Интервал (минут)</label>
+          <input type="number" id="ser25Step" min="1" max="180" value="10" style="width:100%;min-height:40px;font-size:16px;font-weight:700;text-align:center;">
+        </div>
+
+        <div id="ser25Preview" style="padding:8px 10px;border-radius:10px;background:#12141d;border:1px solid #2a2e3d;font-size:12px;color:#10b981;font-weight:700;margin-bottom:10px;"></div>
+
+        <label style="display:block;font-size:11px;color:#8b92a5;margin-bottom:3px;">Название серии будильников</label>
+        <input type="text" id="ser25Label" value="Утренний подъём" placeholder="Например: Подъём на работу" style="width:100%;min-height:40px;margin-bottom:10px;">
+
+        <label style="display:block;font-size:11px;color:#8b92a5;margin-bottom:5px;">Дни повтора для всей серии</label>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px;">
+          ${[1,2,3,4,5,6,0].map(d => {
+            const on = serDays.includes(d);
+            return `<button type="button" class="ser25-day" data-d="${d}" style="min-height:34px;border-radius:8px;border:1px solid ${on ? "#10b981" : "#2a2e3d"};background:${on ? "#065f46" : "#1f222e"};color:#fff;font-size:12px;font-weight:700;">${DAYS_SHORT[d]}</button>`;
+          }).join("")}
+        </div>
+
+        <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin-bottom:10px;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px;">🧠 Логические задания (база из 25 задач)</div>
+          <select id="ser25Mode" style="width:100%;min-height:40px;margin-bottom:8px;">
+            <option value="none">0. Без заданий (0 заданий)</option>
+            <option value="single">🎯 Выбрать 1 конкретное задание</option>
+            <option value="random" selected>🎲 Случайный выбор (без повторов)</option>
+            <option value="custom">🧩 Своя очередь</option>
+          </select>
+
+          <div id="ser25SingleRow" style="display:none;margin-bottom:6px;">
+            <select id="ser25SingleSel" style="width:100%;min-height:38px;">${singleOpts}</select>
+          </div>
+
+          <div id="ser25RndRow" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+            <span style="font-size:12px;color:#8b92a5;">Кол-во (1–25):</span>
+            <input type="number" id="ser25RndCnt" min="1" max="25" value="2" style="width:65px;min-height:36px;text-align:center;">
+            <button type="button" id="ser25All25" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">Все 25 заданий</button>
+          </div>
+
+          <div id="ser25CustomRow" style="display:none;margin-bottom:6px;">
+            <button type="button" id="ser25OpenQ" class="btn btn-sec btn-sm" style="width:100%;min-height:38px;margin-bottom:4px;">🛠️ Настроить свою очередь</button>
+            <div id="ser25QSum" style="font-size:11px;color:#10b981;text-align:center;"></div>
+          </div>
+
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2e3d;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+              <span style="color:#8b92a5;">Сложность заданий (1–10):</span>
+              <b id="ser25DiffLbl" style="color:#10b981;">${diffLabel10(defDiff)}</b>
+            </div>
+            <input type="range" id="ser25DiffRng" min="1" max="10" value="${defDiff}" style="width:100%;min-height:28px;">
+          </div>
+        </div>
+
+        <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin-bottom:12px;">
+          <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;font-weight:700;">🎵 Мелодия (120 танцевальных треков)</label>
+          <select id="ser25SndSel" style="width:100%;min-height:40px;margin-bottom:8px;">
+            <option value="random">🎲 Случайная мелодия (без повторов)</option>
+            ${list120}
+          </select>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <button type="button" id="ser25RndBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">🎲 Рандом</button>
+            <button type="button" id="ser25PrvBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">▶️ Слушать</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <span>🔊 Макс. громкость: <b id="ser25VolTxt">${defVol}%</b></span>
+            <input type="range" id="ser25VolRng" min="10" max="100" value="${defVol}" style="flex:1;min-height:28px;">
+          </div>
+        </div>
+
+        <button type="button" id="ser25CreateBtn" class="btn" style="width:100%;min-height:50px;font-size:16px;font-weight:800;">
+          🚀 Создать серию будильников
+        </button>
+      </div>
+    `;
+    const startIn = document.getElementById("ser25Start"), endIn = document.getElementById("ser25End"), stepIn = document.getElementById("ser25Step");
+    const prevBox = document.getElementById("ser25Preview"), modeSel = document.getElementById("ser25Mode");
+    const singleRow = document.getElementById("ser25SingleRow"), singleSel = document.getElementById("ser25SingleSel");
+    const rndRow = document.getElementById("ser25RndRow"), rndCnt = document.getElementById("ser25RndCnt");
+    const customRow = document.getElementById("ser25CustomRow"), qSum = document.getElementById("ser25QSum");
+    const diffRng = document.getElementById("ser25DiffRng"), diffLbl = document.getElementById("ser25DiffLbl");
+    const sndSel = document.getElementById("ser25SndSel"), volRng = document.getElementById("ser25VolRng"), volTxt = document.getElementById("ser25VolTxt");
+
+    const updatePreview = () => {
+      const list = calcSeriesTimes(startIn.value, endIn.value, stepIn.value);
+      const sample = list.slice(0, 4).join(", ") + (list.length > 4 ? "..." : "");
+      prevBox.innerText = list.length ? `Будет создано будильников: ${list.length} (${sample})` : "Укажите корректный диапазон времени";
+    };
+    [startIn, endIn, stepIn].forEach(el => el.addEventListener("input", updatePreview));
+    updatePreview();
+
+    host.querySelectorAll(".ser25-day").forEach(btn => {
+      btn.onclick = () => {
+        const d = Number(btn.dataset.d), pos = serDays.indexOf(d);
+        if (pos >= 0) serDays.splice(pos, 1); else serDays.push(d);
+        const on = serDays.includes(d);
+        btn.style.borderColor = on ? "#10b981" : "#2a2e3d";
+        btn.style.background = on ? "#065f46" : "#1f222e";
+      };
+    });
+
+    const syncRows = () => {
+      singleRow.style.display = modeSel.value === "single" ? "block" : "none";
+      rndRow.style.display = modeSel.value === "random" ? "flex" : "none";
+      customRow.style.display = modeSel.value === "custom" ? "block" : "none";
+      qSum.innerText = serQueue.length ? `В очереди (${serQueue.length}): ${serQueue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
+    };
+    modeSel.onchange = syncRows;
+    document.getElementById("ser25All25").onclick = () => { rndCnt.value = "25"; };
+    document.getElementById("ser25OpenQ").onclick = () => {
+      window.saveProfile15Config("alarm", { queue: serQueue, mode: "custom" });
+      window.openProfileQueueModal("alarm", () => { serQueue = Array.from(window.getProfile15Config("alarm").queue); syncRows(); });
+    };
+    syncRows();
+
+    diffRng.oninput = () => { diffLbl.innerText = diffLabel10(diffRng.value); };
+    volRng.oninput = () => { volTxt.innerText = volRng.value + "%"; };
+    document.getElementById("ser25RndBtn").onclick = () => { sndSel.value = "random"; };
+
+    let playing = false;
+    document.getElementById("ser25PrvBtn").onclick = e => {
+      playing = !playing;
+      if (playing) {
+        if (window.SoundPack) window.SoundPack.play(sndSel.value, Number(volRng.value) || 75, window.db || null, true);
+        e.target.innerText = "⏹ Стоп";
+      } else { if (window.SoundPack) window.SoundPack.stop(); e.target.innerText = "▶️ Слушать"; }
+    };
+
+    document.getElementById("ser25CreateBtn").onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      const times = calcSeriesTimes(startIn.value, endIn.value, stepIn.value);
+      if (times.length === 0) return;
+
+      const lbl = document.getElementById("ser25Label").value.trim() || "Утренний будильник";
+      const mode = modeSel.value, singleId = Math.max(1, Math.min(25, Number(singleSel.value) || 1));
+      const rCnt = Math.max(1, Math.min(25, Number(rndCnt.value) || 2)), snd = sndSel.value;
+      const vol = Math.max(10, Math.min(100, Number(volRng.value) || 75)), diff = Math.max(1, Math.min(10, Number(diffRng.value) || 5));
+
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+
+      times.forEach((tStr, i) => {
+        list.push({
+          id: Date.now() + i, time: tStr, label: lbl, name: lbl, days: Array.from(serDays),
+          sound: snd, vol: vol, taskMode: mode, taskSingleId: singleId, taskRndCnt: rCnt,
+          taskQueue: Array.from(serQueue), taskDiff: diff, enabled: true
+        });
+      });
+
+      localStorage.setItem("sa_alarms", JSON.stringify(list)); localStorage.setItem("alarms", JSON.stringify(list));
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) { alarms.length = 0; list.forEach(x => alarms.push(x)); }
+      if (typeof window.renderAlarms === "function") window.renderAlarms();
+      if (typeof window.pushExactAlarmSchedule === "function") window.pushExactAlarmSchedule();
+
+      // Переключаемся на главную вкладку "Будильники"
+      document.querySelectorAll("button, .tab-btn, [data-tab]").forEach(b => {
+        if ((b.innerText || "").trim().toLowerCase() === "будильники") b.click();
+      });
+    };
+  }
+
+  setInterval(() => {
+    const byId = document.getElementById("seriesTab") || document.getElementById("tab-series") || document.getElementById("seriesSection");
+    if (byId && byId.offsetParent !== null && !byId.dataset.modernSeries25) { mountModernSeriesUI(byId); return; }
+    document.querySelectorAll("section, .tab-content, .view, div").forEach(el => {
+      if (el.dataset.modernSeries25 || el.offsetParent === null) return;
+      const t = el.innerText || "";
+      if (t.includes("Серия будильников") && t.includes("Интервал") && t.length < 350) mountModernSeriesUI(el);
+    });
+  }, 250);
+})();
