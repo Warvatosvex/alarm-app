@@ -2644,3 +2644,160 @@
     } catch (e) {}
   };
 })();
+(function cleanZeroDuplicateModals() {
+  function diffText10(v) {
+    v = Math.max(1, Math.min(10, Number(v) || 5));
+    if (v <= 3) return `${v}/10 — Легко`;
+    if (v <= 7) return `${v}/10 — Средне`;
+    return `${v}/10 — Хардкор`;
+  }
+
+  window.openTestConfigModal = function() {
+    let m = document.getElementById("saTestCfgModal");
+    if (m) m.remove();
+
+    const cfg = window.getProfile15Config ? window.getProfile15Config("test") : { mode: "random", singleId: 1, rndCnt: 2, queue: [] };
+    const curDiff = window.getProfileDiff10 ? window.getProfileDiff10("test") : 5;
+    const curVol = window.getProfileVolume ? window.getProfileVolume("test") : 75;
+    const curSnd = localStorage.getItem("sa_test_sound") || localStorage.getItem("sa_last_sound") || "random";
+    const savedPrompt = localStorage.getItem("sa_test_prompt") || "";
+
+    const allTasks = (window.Logic25Pack || window.Logic15Pack)?.TASKS || [];
+    const singleOpts = allTasks.map(t => `<option value="${t.id}" ${cfg.singleId === t.id ? "selected" : ""}>№${t.id}. ${t.title}</option>`).join("");
+    const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
+    const esc = s => String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+    m = document.createElement("div");
+    m.id = "saTestCfgModal";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.88);display:flex;justify-content:center;align-items:center;padding:12px;z-index:20000;box-sizing:border-box;";
+    m.innerHTML = `
+      <div style="width:100%;max-width:400px;max-height:92vh;background:#161822;border:1px solid #2a2e3d;border-radius:18px;display:flex;flex-direction:column;color:#fff;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #2a2e3d;">
+          <b style="font-size:17px;">🧪 Тест будильника</b>
+          <button type="button" id="tCleanClose" class="btn btn-sec btn-sm" style="min-height:34px;padding:0 10px;">✕</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:14px 16px;">
+          <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:13px;font-weight:700;">🧠 Задания (база 25 задач)</span>
+              <button type="button" id="tCopyFromAlarm" class="btn btn-sec btn-sm" style="min-height:26px;font-size:11px;padding:2px 8px;">🔄 Как у будильника</button>
+            </div>
+            <select id="tCleanMode" style="width:100%;min-height:40px;margin-bottom:8px;">
+              <option value="none" ${cfg.mode==="none"?"selected":""}>0. Без заданий (0 заданий)</option>
+              <option value="single" ${cfg.mode==="single"?"selected":""}>🎯 Выбрать 1 конкретное задание</option>
+              <option value="random" ${cfg.mode==="random"?"selected":""}>🎲 Случайный выбор (без повторов)</option>
+              <option value="custom" ${cfg.mode==="custom"?"selected":""}>🧩 Своя очередь</option>
+            </select>
+            <div id="tCleanSingleRow" style="display:${cfg.mode==="single"?"block":"none"};margin-bottom:6px;"><select id="tCleanSingleSel" style="width:100%;min-height:38px;">${singleOpts}</select></div>
+            <div id="tCleanRndRow" style="display:${cfg.mode==="random"?"flex":"none"};gap:6px;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12px;color:#8b92a5;">Кол-во (1–25):</span>
+              <input type="number" id="tCleanRndCnt" min="1" max="25" value="${cfg.rndCnt}" style="width:65px;min-height:36px;text-align:center;">
+              <button type="button" id="tCleanAll25" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">Все 25 заданий</button>
+            </div>
+            <div id="tCleanCustomRow" style="display:${cfg.mode==="custom"?"block":"none"};margin-bottom:6px;">
+              <button type="button" id="tCleanOpenQ" class="btn btn-sec btn-sm" style="width:100%;min-height:38px;margin-bottom:4px;">🛠️ Настроить свою очередь</button>
+              <div id="tCleanQSum" style="font-size:11px;color:#10b981;text-align:center;"></div>
+            </div>
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2e3d;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="color:#8b92a5;">Сложность заданий (1–10):</span>
+                <b id="tCleanDiffLbl" style="color:#10b981;">${diffText10(curDiff)}</b>
+              </div>
+              <input type="range" id="tCleanDiffRng" min="1" max="10" value="${curDiff}" style="width:100%;min-height:28px;">
+            </div>
+          </div>
+          <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin-bottom:10px;">
+            <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;font-weight:700;">🎵 Мелодия (120 треков)</label>
+            <select id="tCleanSndSel" style="width:100%;min-height:40px;margin-bottom:8px;"><option value="random">🎲 Случайная мелодия (без повторов)</option>${list120}</select>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <button type="button" id="tCleanPrvBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">▶️ Слушать</button>
+              <button type="button" id="tCleanShufBtn" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">🔀 Случайный звук</button>
+            </div>
+            <div id="tCleanNowLbl" style="font-size:11px;color:#10b981;text-align:center;min-height:14px;margin-bottom:6px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+              <span>🔊 Громкость: <b id="tCleanVolTxt">${curVol}%</b></span>
+              <input type="range" id="tCleanVolRng" min="10" max="100" value="${curVol}" style="flex:1;min-height:28px;">
+            </div>
+          </div>
+          <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;">
+            <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;font-weight:700;">📝 Текст / промпт при тесте (необязательно)</label>
+            <textarea id="tCleanPrompt" rows="2" placeholder="Например: Вставай, пора на пробежку!" style="width:100%;padding:8px;border-radius:10px;background:#12141d;color:#fff;border:1px solid #2a2e3d;font-size:13px;box-sizing:border-box;">${esc(savedPrompt)}</textarea>
+          </div>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid #2a2e3d;background:#12141d;">
+          <button type="button" id="tCleanRunBtn" class="btn" style="width:100%;min-height:48px;font-size:16px;">▶️ Запустить тест</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    const modeSel = document.getElementById("tCleanMode"), singleRow = document.getElementById("tCleanSingleRow"), singleSel = document.getElementById("tCleanSingleSel");
+    const rndRow = document.getElementById("tCleanRndRow"), rndCnt = document.getElementById("tCleanRndCnt"), customRow = document.getElementById("tCleanCustomRow"), qSum = document.getElementById("tCleanQSum");
+    const diffRng = document.getElementById("tCleanDiffRng"), diffLbl = document.getElementById("tCleanDiffLbl"), sndSel = document.getElementById("tCleanSndSel");
+    const volRng = document.getElementById("tCleanVolRng"), volTxt = document.getElementById("tCleanVolTxt"), nowLbl = document.getElementById("tCleanNowLbl");
+
+    sndSel.value = curSnd;
+
+    const refreshView = () => {
+      const c = window.getProfile15Config("test");
+      modeSel.value = c.mode; singleSel.value = String(c.singleId); rndCnt.value = String(c.rndCnt);
+      singleRow.style.display = c.mode === "single" ? "block" : "none";
+      rndRow.style.display = c.mode === "random" ? "flex" : "none";
+      customRow.style.display = c.mode === "custom" ? "block" : "none";
+      qSum.innerText = c.queue.length ? `В очереди (${c.queue.length}): ${c.queue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
+    };
+
+    modeSel.onchange = () => { window.saveProfile15Config("test", { mode: modeSel.value }); refreshView(); };
+    singleSel.onchange = () => window.saveProfile15Config("test", { singleId: Number(singleSel.value) });
+    rndCnt.oninput = () => window.saveProfile15Config("test", { rndCnt: Math.max(1, Math.min(25, Number(rndCnt.value) || 1)) });
+    document.getElementById("tCleanAll25").onclick = () => { rndCnt.value = "25"; window.saveProfile15Config("test", { rndCnt: 25 }); };
+    document.getElementById("tCleanOpenQ").onclick = () => window.openProfileQueueModal("test", () => refreshView());
+    document.getElementById("tCopyFromAlarm").onclick = () => {
+      window.saveProfile15Config("test", window.getProfile15Config("alarm"));
+      const aDiff = window.getProfileDiff10("alarm");
+      window.setProfileDiff10("test", aDiff);
+      diffRng.value = String(aDiff); diffLbl.innerText = diffText10(aDiff); refreshView();
+    };
+    diffRng.oninput = () => { const v = window.setProfileDiff10("test", diffRng.value); diffLbl.innerText = diffText10(v); };
+    sndSel.onchange = () => localStorage.setItem("sa_test_sound", sndSel.value);
+    volRng.oninput = () => { const v = window.setProfileVolume("test", volRng.value); volTxt.innerText = v + "%"; };
+    let previewing = false;
+    const prvBtn = document.getElementById("tCleanPrvBtn");
+    prvBtn.onclick = () => {
+      previewing = !previewing;
+      if (previewing) {
+        const tr = window.SoundPack ? window.SoundPack.play(sndSel.value, Number(volRng.value), window.db || null, true) : null;
+        prvBtn.innerText = "⏹ Стоп"; if (tr) nowLbl.innerText = "🎵 " + tr.name;
+      } else { if (window.SoundPack) window.SoundPack.stop(); prvBtn.innerText = "▶️ Слушать"; nowLbl.innerText = ""; }
+    };
+
+    document.getElementById("tCleanShufBtn").onclick = () => {
+      if (window.SoundPack) {
+        const tr = window.SoundPack.play("random", Number(volRng.value), window.db || null, true);
+        previewing = true; prvBtn.innerText = "⏹ Стоп";
+        if (tr) { sndSel.value = tr.id; localStorage.setItem("sa_test_sound", tr.id); nowLbl.innerText = "🎵 " + tr.name; }
+      }
+    };
+
+    document.getElementById("tCleanClose").onclick = () => { if (window.SoundPack) window.SoundPack.stop(); m.remove(); };
+
+    document.getElementById("tCleanRunBtn").onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      const promptTxt = document.getElementById("tCleanPrompt").value;
+      localStorage.setItem("sa_test_prompt", promptTxt);
+      const tCfg = window.getProfile15Config("test"), tDiff = window.getProfileDiff10("test"), tVol = window.getProfileVolume("test"), tSnd = sndSel.value;
+      m.remove();
+      if (window.launchLockedTasksOverLockscreen) {
+        window.launchLockedTasksOverLockscreen({
+          title: "🧪 ТЕСТ БУДИЛЬНИКА", label: promptTxt.trim() || "Тестовый сигнал", sound: tSnd, vol: tVol,
+          taskMode: tCfg.mode, taskSingleId: tCfg.singleId, taskRndCnt: tCfg.rndCnt, taskQueue: tCfg.queue, taskDiff: tDiff
+        });
+      }
+    };
+
+    refreshView();
+  };
+
+  setInterval(() => {
+    const edModal = document.getElementById("saEditSpecificModal");
+    if (edModal) edModal.querySelectorAll(".sa-injected-mel-box, #saLogic25Box").forEach(el => el.remove());
+  }, 200);
+})();
