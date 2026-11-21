@@ -1,3 +1,19 @@
+
+(function eliminateModalReflowAndTimers() {
+  const nativeSetInterval = window.setInterval;
+  window.setInterval = function(fn, delay, ...args) {
+    const src = String(fn);
+    const isClockTick = src.includes("toTimeString") || src.includes("saTasksLiveClock") || src.includes("saZeroLiveClock");
+    if (!isClockTick && Number(delay) <= 500) {
+      return nativeSetInterval(function() {
+        const anyModalOpen = document.getElementById("saEditSpecificModal") || document.getElementById("saTestCfgModal") || document.getElementById("saProfileQModal");
+        if (anyModalOpen) return;
+        return fn.apply(this, args);
+      }, delay, ...args);
+    }
+    return nativeSetInterval(fn, delay, ...args);
+  };
+})();
 (function cleanFullApp() {
   window.playBuiltInSiren = () => {};
   window.startRingingSound = sid => window.SoundPack && window.SoundPack.play(sid || "random", Number(localStorage.getItem("sa_vol") || 55), window.db || null, false);
