@@ -2790,8 +2790,7 @@
     refreshView();
   };
 
-  setInterval(() => {
-    const edModal = document.getElementById("saEditSpecificModal");
+  setInterval(() => { const edModal = null;
     if (edModal) edModal.querySelectorAll(".sa-injected-mel-box, #saLogic25Box").forEach(el => el.remove());
   }, 200);
 })();
@@ -2811,7 +2810,7 @@
 })();
 (function rebuildSeriesTab25And120() {
   const DAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-  let serDays =;
+  let serDays = new Array(1,2,3,4,5);
   let serQueue = [];
 
   function calcSeriesTimes(startStr, endStr, stepMin) {
@@ -3031,4 +3030,205 @@
       if (t.includes("Серия будильников") && t.includes("Интервал") && t.length < 350) mountModernSeriesUI(el);
     });
   }, 250);
+})();
+(function stableZeroShiftModals() {
+  const DAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+  const diffText10 = v => {
+    v = Math.max(1, Math.min(10, Number(v) || 5));
+    return v <= 3 ? `${v}/10 — Легко` : (v <= 7 ? `${v}/10 — Средне` : `${v}/10 — Хардкор`);
+  };
+
+  // Единый мгновенный рендер окна «Настройка будильника» (без задержек и прыжков)
+  window.openEditSpecificAlarmModal = function(alarmObj, alarmIndex) {
+    document.querySelectorAll(".modal").forEach(el => {
+      if (el.id !== "saTestCfgModal") { el.style.display = "none"; el.classList.remove("active"); }
+    });
+    let m = document.getElementById("saEditSpecificModal");
+    if (m) m.remove();
+
+    const isEdit = (typeof alarmIndex === "number" && alarmIndex >= 0 && alarmObj);
+    const tVal = (alarmObj && alarmObj.time) ? alarmObj.time : "07:30";
+    const lVal = (alarmObj && (alarmObj.label || alarmObj.name) && !String(alarmObj.label).includes("БудильникБудильник")) ? (alarmObj.label || alarmObj.name) : "Утренний будильник";
+    const selDays = (alarmObj && Array.isArray(alarmObj.days)) ? Array.from(alarmObj.days) : (isEdit ? [] : [1, 2, 3, 4, 5]);
+
+    const baseCfg = window.getProfile15Config ? window.getProfile15Config("alarm") : { mode: "random", singleId: 1, rndCnt: 2, queue: [] };
+    const indMode = (alarmObj && alarmObj.taskMode) ? alarmObj.taskMode : baseCfg.mode;
+    const indSingle = (alarmObj && alarmObj.taskSingleId) ? Number(alarmObj.taskSingleId) : baseCfg.singleId;
+    const indRndCnt = (alarmObj && alarmObj.taskRndCnt) ? Number(alarmObj.taskRndCnt) : baseCfg.rndCnt;
+    let indQueue = (alarmObj && Array.isArray(alarmObj.taskQueue)) ? Array.from(alarmObj.taskQueue) : Array.from(baseCfg.queue);
+    const indDiff = (alarmObj && alarmObj.taskDiff) ? Math.max(1, Math.min(10, Number(alarmObj.taskDiff))) : (window.getProfileDiff10 ? window.getProfileDiff10("alarm") : 5);
+
+    const curSnd = (alarmObj && alarmObj.sound) ? alarmObj.sound : (localStorage.getItem("sa_last_sound") || "random");
+    const curVol = (alarmObj && alarmObj.vol) ? Number(alarmObj.vol) : (window.getProfileVolume ? window.getProfileVolume("alarm") : 75);
+
+    const allTasks = (window.Logic25Pack || window.Logic15Pack)?.TASKS || [];
+    const singleOpts = allTasks.map(t => `<option value="${t.id}" ${indSingle === t.id ? "selected" : ""}>№${t.id}. ${t.title}</option>`).join("");
+    const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
+
+    m = document.createElement("div");
+    m.id = "saEditSpecificModal";
+    m.className = "modal active";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100dvh;background:rgba(0,0,0,0.88);display:flex;justify-content:center;align-items:center;padding:12px;z-index:18000;box-sizing:border-box;pointer-events:auto;";
+    m.innerHTML = `
+      <div style="width:100%;max-width:400px;max-height:90dvh;background:#161822;border:1px solid #2a2e3d;border-radius:18px;display:flex;flex-direction:column;color:#fff;overflow:hidden;">
+        <div style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #2a2e3d;background:#161822;">
+          <b style="font-size:17px;">⏰ Настройка будильника</b>
+          <button type="button" id="edTopClose" class="btn btn-sec btn-sm" style="min-height:34px;padding:0 10px;">✕</button>
+        </div>
+
+        <div style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 16px;-webkit-overflow-scrolling:touch;">
+          <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Время срабатывания</label>
+          <input type="time" id="edModTime" value="${tVal}" style="width:100%;min-height:48px;font-size:24px;font-weight:900;text-align:center;margin-bottom:10px;border-radius:12px;">
+
+          <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Название будильника</label>
+          <input type="text" id="edModLabel" value="${lVal}" placeholder="Утренний будильник" style="width:100%;min-height:40px;margin-bottom:10px;border-radius:10px;">
+
+          <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:6px;">Дни повтора</label>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px;">
+            ${[1,2,3,4,5,6,0].map(d => {
+              const on = selDays.includes(d);
+              return `<button type="button" class="ed-day-btn" data-d="${d}" style="min-height:34px;border-radius:8px;border:1px solid ${on ? "#10b981" : "#2a2e3d"};background:${on ? "#065f46" : "#1f222e"};color:#fff;font-size:12px;font-weight:700;">${DAYS_SHORT[d]}</button>`;
+            }).join("")}
+          </div>
+
+          <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin-bottom:10px;">
+            <div style="font-size:13px;font-weight:700;margin-bottom:6px;">🧠 Логические задания (база из 25 задач)</div>
+            <select id="edTaskMode" class="sa25-mode" style="width:100%;min-height:40px;margin-bottom:8px;">
+              <option value="none" ${indMode === "none" ? "selected" : ""}>0. Без заданий (0 заданий)</option>
+              <option value="single" ${indMode === "single" ? "selected" : ""}>🎯 Выбрать 1 конкретное задание</option>
+              <option value="random" ${indMode === "random" ? "selected" : ""}>🎲 Случайный выбор (без повторов)</option>
+              <option value="custom" ${indMode === "custom" ? "selected" : ""}>🧩 Своя очередь</option>
+            </select>
+            <div id="edSingleRow" style="display:${indMode === "single" ? "block" : "none"};margin-bottom:6px;"><select id="edSingleSel" class="sa25-single" style="width:100%;min-height:38px;">${singleOpts}</select></div>
+            <div id="edRndRow" style="display:${indMode === "random" ? "flex" : "none"};gap:6px;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12px;color:#8b92a5;">Кол-во (1–25):</span>
+              <input type="number" id="edRndCnt" min="1" max="25" value="${indRndCnt}" style="width:65px;min-height:36px;text-align:center;">
+              <button type="button" id="edAll25Btn" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">Все 25 заданий</button>
+            </div>
+            <div id="edCustomRow" style="display:${indMode === "custom" ? "block" : "none"};margin-bottom:6px;">
+              <button type="button" id="edOpenQBtn" class="btn btn-sec btn-sm" style="width:100%;min-height:38px;margin-bottom:4px;">🛠️ Настроить свою очередь</button>
+              <div id="edQSummary" style="font-size:11px;color:#10b981;text-align:center;"></div>
+            </div>
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2e3d;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="color:#8b92a5;">Сложность заданий (1–10):</span>
+                <b id="edDiff10Lbl" style="color:#10b981;">${diffText10(indDiff)}</b>
+              </div>
+              <input type="range" id="edDiff10Rng" min="1" max="10" value="${indDiff}" style="width:100%;min-height:28px;">
+            </div>
+          </div>
+
+          <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin-bottom:8px;">
+            <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;font-weight:700;">🎵 Мелодия (120 танцевальных треков)</label>
+            <select id="edModSnd" class="sa-mel-sel" style="width:100%;min-height:40px;margin-bottom:8px;"><option value="random">🎲 Случайная мелодия (без повторов)</option>${list120}</select>
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+              <button type="button" id="edModRnd" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">🎲 Рандом</button>
+              <button type="button" id="edModPrv" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">▶️ Слушать</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+              <span>🔊 Макс. громкость: <b id="edModVolTxt">${curVol}%</b></span>
+              <input type="range" id="edModVolRng" min="10" max="100" value="${curVol}" style="flex:1;min-height:28px;">
+            </div>
+          </div>
+
+          ${isEdit ? `<button type="button" id="edModDelete" class="btn btn-sec" style="width:100%;min-height:40px;font-size:13px;color:#ff2a4b;border-color:#7f1d1d;margin-top:4px;">🗑️ Удалить будильник</button>` : ""}
+        </div>
+
+        <div style="flex-shrink:0;display:flex;gap:8px;padding:12px 16px;border-top:1px solid #2a2e3d;background:#12141d;">
+          <button type="button" id="edModCancel" class="btn btn-sec" style="flex:1;min-height:46px;font-size:15px;">Отмена</button>
+          <button type="button" id="edModSave" class="btn" style="flex:1;min-height:46px;font-size:15px;">Сохранить</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    m.querySelectorAll(".ed-day-btn").forEach(btn => {
+      btn.onclick = () => {
+        const d = Number(btn.dataset.d), pos = selDays.indexOf(d);
+        if (pos >= 0) selDays.splice(pos, 1); else selDays.push(d);
+        const active = selDays.includes(d);
+        btn.style.borderColor = active ? "#10b981" : "#2a2e3d";
+        btn.style.background = active ? "#065f46" : "#1f222e";
+      };
+    });
+
+    const modeSel = document.getElementById("edTaskMode"), singleRow = document.getElementById("edSingleRow"), singleSel = document.getElementById("edSingleSel");
+    const rndRow = document.getElementById("edRndRow"), rndCntIn = document.getElementById("edRndCnt"), customRow = document.getElementById("edCustomRow"), qSum = document.getElementById("edQSummary");
+    const diffRng = document.getElementById("edDiff10Rng"), diffLbl = document.getElementById("edDiff10Lbl");
+
+    const syncTaskRows = () => {
+      singleRow.style.display = modeSel.value === "single" ? "block" : "none";
+      rndRow.style.display = modeSel.value === "random" ? "flex" : "none";
+      customRow.style.display = modeSel.value === "custom" ? "block" : "none";
+      qSum.innerText = indQueue.length ? `В очереди (${indQueue.length}): ${indQueue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
+    };
+    modeSel.onchange = syncTaskRows;
+    diffRng.oninput = () => { diffLbl.innerText = diffText10(diffRng.value); };
+    document.getElementById("edAll25Btn").onclick = () => { rndCntIn.value = "25"; };
+    document.getElementById("edOpenQBtn").onclick = () => {
+      window.saveProfile15Config("alarm", { queue: indQueue, mode: "custom" });
+      window.openProfileQueueModal("alarm", () => { indQueue = Array.from(window.getProfile15Config("alarm").queue); syncTaskRows(); });
+    };
+    syncTaskRows();
+
+    const sndSel = document.getElementById("edModSnd"); sndSel.value = curSnd;
+    document.getElementById("edModRnd").onclick = () => { sndSel.value = "random"; };
+    let playing = false;
+    document.getElementById("edModPrv").onclick = e => {
+      playing = !playing;
+      if (playing) {
+        const v = Number(document.getElementById("edModVolRng").value) || 75;
+        if (window.SoundPack) window.SoundPack.play(sndSel.value, v, window.db || null, true);
+        e.target.innerText = "⏹ Стоп";
+      } else { if (window.SoundPack) window.SoundPack.stop(); e.target.innerText = "▶️ Слушать"; }
+    };
+
+    const volRng = document.getElementById("edModVolRng");
+    volRng.oninput = e => { document.getElementById("edModVolTxt").innerText = e.target.value + "%"; };
+    const closeModal = () => { if (window.SoundPack) window.SoundPack.stop(); m.remove(); };
+    document.getElementById("edTopClose").onclick = closeModal;
+    document.getElementById("edModCancel").onclick = closeModal;
+
+    document.getElementById("edModSave").onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      const newTime = document.getElementById("edModTime").value || tVal;
+      const newLabel = document.getElementById("edModLabel").value.trim() || "Утренний будильник";
+      const newMode = modeSel.value, newSingle = Math.max(1, Math.min(25, Number(singleSel.value) || 1));
+      const newRndCnt = Math.max(1, Math.min(25, Number(rndCntIn.value) || 1)), newSnd = sndSel.value;
+      const newVol = Math.max(10, Math.min(100, Number(volRng.value) || 75)), newDiff = Math.max(1, Math.min(10, Number(diffRng.value) || 5));
+
+      const alarmPayload = {
+        id: isEdit && alarmObj.id ? alarmObj.id : Date.now(), time: newTime, label: newLabel, name: newLabel,
+        days: Array.from(selDays), sound: newSnd, vol: newVol, taskMode: newMode, taskSingleId: newSingle,
+        taskRndCnt: newRndCnt, taskQueue: Array.from(indQueue), taskDiff: newDiff, enabled: true
+      };
+
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+      if (isEdit && list[alarmIndex]) list[alarmIndex] = alarmPayload; else list.push(alarmPayload);
+      localStorage.setItem("sa_alarms", JSON.stringify(list)); localStorage.setItem("alarms", JSON.stringify(list));
+      localStorage.setItem("sa_last_sound", newSnd);
+      if (window.setProfileVolume) window.setProfileVolume("alarm", newVol);
+      if (window.setProfileDiff10) window.setProfileDiff10("alarm", newDiff);
+      if (window.saveProfile15Config) window.saveProfile15Config("alarm", { mode: newMode, singleId: newSingle, rndCnt: newRndCnt, queue: indQueue });
+
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) { alarms.length = 0; list.forEach(x => alarms.push(x)); }
+      if (typeof window.renderAlarms === "function") window.renderAlarms();
+      if (typeof window.pushExactAlarmSchedule === "function") window.pushExactAlarmSchedule();
+      m.remove();
+    };
+
+    const delBtn = document.getElementById("edModDelete");
+    if (delBtn) {
+      delBtn.onclick = () => {
+        if (window.SoundPack) window.SoundPack.stop();
+        let list = [];
+        try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+        if (isEdit) list.splice(alarmIndex, 1);
+        localStorage.setItem("sa_alarms", JSON.stringify(list)); localStorage.setItem("alarms", JSON.stringify(list));
+        if (typeof alarms !== "undefined" && Array.isArray(alarms)) { alarms.length = 0; list.forEach(x => alarms.push(x)); }
+        if (typeof window.renderAlarms === "function") window.renderAlarms();
+        if (typeof window.pushExactAlarmSchedule === "function") window.pushExactAlarmSchedule();
+        m.remove();
+      };
+    }
+  };
 })();
