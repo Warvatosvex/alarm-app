@@ -1855,7 +1855,7 @@
   if (typeof window.renderAlarms === "function") setTimeout(window.renderAlarms, 100);
 })();
 (function rebuildMainAlarmModal25And120() {
-  const DAYS_SHORT = Array.of("Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб");
+  const DAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
   function purgeOld7TasksSelect(root) {
     if (!root) return;
@@ -1880,7 +1880,7 @@
     const isEdit = (typeof alarmIndex === "number" && alarmIndex >= 0 && alarmObj);
     const tVal = (alarmObj && alarmObj.time) ? alarmObj.time : "07:30";
     const lVal = (alarmObj && (alarmObj.label || alarmObj.name) && !String(alarmObj.label).includes("БудильникБудильник")) ? (alarmObj.label || alarmObj.name) : "Утренний будильник";
-    const selDays = (alarmObj && Array.isArray(alarmObj.days)) ? Array.from(alarmObj.days) : (isEdit ? [] : Array.of(1, 2, 3, 4, 5));
+    const selDays = (alarmObj && Array.isArray(alarmObj.days)) ? Array.from(alarmObj.days) : (isEdit ? [] : [1, 2, 3, 4, 5]);
 
     const baseCfg = window.getProfile15Config ? window.getProfile15Config("alarm") : { mode: "random", singleId: 1, rndCnt: 2, queue: [] };
     const indMode = (alarmObj && alarmObj.taskMode) ? alarmObj.taskMode : baseCfg.mode;
@@ -1911,10 +1911,10 @@
           <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Название будильника</label>
           <input type="text" id="edModLabel" value="${lVal}" placeholder="Утренний будильник" style="width:100%;min-height:40px;margin-bottom:10px;border-radius:10px;">
           <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:6px;">Дни повтора</label>
-          <div id="edDaysBar" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px;">
-            ${Array.of(1,2,3,4,5,6,0).map(d => {
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px;">
+            ${[1,2,3,4,5,6,0].map(d => {
               const on = selDays.includes(d);
-              return `<button type="button" class="ed-day-btn" data-d="${d}" style="min-height:36px;border-radius:8px;border:1px solid ${on ? "#10b981" : "#2a2e3d"};background:${on ? "#065f46" : "#1f222e"};color:#fff;font-size:12px;font-weight:700;">${DAYS_SHORT.at(d)}</button>`;
+              return `<button type="button" class="ed-day-btn" data-d="${d}" style="min-height:36px;border-radius:8px;border:1px solid ${on ? "#10b981" : "#2a2e3d"};background:${on ? "#065f46" : "#1f222e"};color:#fff;font-size:12px;font-weight:700;">${DAYS_SHORT[d]}</button>`;
             }).join("")}
           </div>
           <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin-bottom:12px;">
@@ -2028,6 +2028,7 @@
       if (typeof window.pushExactAlarmSchedule === "function") window.pushExactAlarmSchedule();
       m.remove();
     };
+
     const delBtn = document.getElementById("edModDelete");
     if (delBtn) {
       delBtn.onclick = () => {
