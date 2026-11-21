@@ -1606,3 +1606,178 @@
     }
   }, false);
 })();
+(function fixEncodingAndClickableAlarmCards() {
+  function repairStoredAlarmsText() {
+    ["sa_alarms", "alarms"].forEach(key => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const list = JSON.parse(raw);
+        let changed = false;
+        list.forEach(a => {
+          if (!a) return;
+          const badPattern = /[\u00D0\u00D1]{2,}|Р[А-Яа-я]|С[А-Яа-я]/;
+          if (a.label && badPattern.test(a.label)) { a.label = "Утренний будильник"; changed = true; }
+          if (a.name && badPattern.test(a.name)) { a.name = "Утренний будильник"; changed = true; }
+        });
+        if (changed) localStorage.setItem(key, JSON.stringify(list));
+      } catch (e) {}
+    });
+  }
+  repairStoredAlarmsText();
+
+  window.openEditSpecificAlarmModal = function(alarmObj, alarmIndex) {
+    let m = document.getElementById("saEditSpecificModal");
+    if (m) m.remove();
+
+    m = document.createElement("div");
+    m.id = "saEditSpecificModal";
+    m.className = "modal active";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.88);display:flex;justify-content:center;align-items:center;padding:12px;z-index:16000;box-sizing:border-box;pointer-events:auto;";
+
+    const tVal = (alarmObj && alarmObj.time) ? alarmObj.time : "07:30";
+    const lVal = (alarmObj && (alarmObj.label || alarmObj.name)) ? (alarmObj.label || alarmObj.name) : "Утренний будильник";
+    const list120 = window.SoundPack ? window.SoundPack.list.map(x => `<option value="${x.id}">🎵 ${x.name}</option>`).join("") : "";
+    const curSnd = (alarmObj && alarmObj.sound) ? alarmObj.sound : (localStorage.getItem("sa_last_sound") || "random");
+    const curVol = (alarmObj && alarmObj.vol) ? Number(alarmObj.vol) : (window.getProfileVolume ? window.getProfileVolume("alarm") : 75);
+
+    m.innerHTML = `
+      <div style="width:100%;max-width:390px;max-height:92vh;overflow-y:auto;background:#161822;border:1px solid #2a2e3d;border-radius:18px;padding:16px;box-sizing:border-box;color:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="font-size:17px;">⏰ Настройка будильника ${tVal}</b>
+          <button type="button" id="edModClose" class="btn btn-sec btn-sm" style="min-height:34px;padding:0 10px;">✕</button>
+        </div>
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Время срабатывания</label>
+        <input type="time" id="edModTime" value="${tVal}" style="width:100%;min-height:48px;font-size:24px;font-weight:900;text-align:center;margin-bottom:10px;">
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Название будильника</label>
+        <input type="text" id="edModLabel" value="${lVal}" placeholder="Например: Подъём на работу" style="width:100%;min-height:40px;margin-bottom:10px;">
+        <div id="edModTasksHost" style="margin-bottom:10px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;"></div>
+        <div style="margin-bottom:12px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;">
+          <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;font-weight:700;">🎵 Мелодия (120 звуков)</label>
+          <select id="edModSnd" class="sa-mel-sel" style="width:100%;min-height:40px;margin-bottom:8px;">
+            <option value="random">🎲 Случайная мелодия (без повторов)</option>
+            ${list120}
+          </select>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <button type="button" id="edModRnd" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">🎲 Рандом</button>
+            <button type="button" id="edModPrv" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;">▶️ Слушать</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <span>🔊 Громкость: <b id="edModVolTxt">${curVol}%</b></span>
+            <input type="range" id="edModVolRng" min="10" max="100" value="${curVol}" style="flex:1;min-height:28px;">
+          </div>
+        </div>
+        <button type="button" id="edModSave" class="btn" style="width:100%;min-height:48px;font-size:16px;margin-bottom:8px;">💾 Сохранить изменения</button>
+        ${alarmIndex >= 0 ? `<button type="button" id="edModDelete" class="btn btn-sec" style="width:100%;min-height:42px;font-size:14px;color:#ff2a4b;border-color:#7f1d1d;">🗑️ Удалить будильник</button>` : ""}
+      </div>
+    `;
+    document.body.appendChild(m);
+    const tHost = document.getElementById("edModTasksHost");
+    if (window.getProfile15Config) {
+      const cfg = window.getProfile15Config("alarm");
+      const allT = (window.Logic25Pack || window.Logic15Pack)?.TASKS || [];
+      const opts = allT.map(t => `<option value="${t.id}" ${cfg.singleId===t.id?"selected":""}>№${t.id}. ${t.title}</option>`).join("");
+      tHost.innerHTML = `
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">🧠 Логические задания (25 задач)</div>
+        <select id="edTaskMode" style="width:100%;min-height:40px;margin-bottom:8px;">
+          <option value="none" ${cfg.mode==="none"?"selected":""}>0. Без заданий (0 заданий)</option>
+          <option value="single" ${cfg.mode==="single"?"selected":""}>🎯 Выбрать конкретное задание</option>
+          <option value="random" ${cfg.mode==="random"?"selected":""}>🎲 Случайный выбор (без повторов)</option>
+          <option value="custom" ${cfg.mode==="custom"?"selected":""}>🧩 Своя очередь</option>
+        </select>
+        <div id="edSingleRow" style="display:${cfg.mode==="single"?"block":"none"};margin-bottom:6px;"><select id="edSingleSel" style="width:100%;min-height:38px;">${opts}</select></div>
+        <div id="edRndRow" style="display:${cfg.mode==="random"?"flex":"none"};gap:6px;align-items:center;margin-bottom:6px;">
+          <span style="font-size:12px;color:#8b92a5;">Кол-во (1–25):</span>
+          <input type="number" id="edRndCnt" min="1" max="25" value="${cfg.rndCnt}" style="width:65px;min-height:36px;text-align:center;">
+          <button type="button" id="edAll25Btn" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">Все 25 заданий</button>
+        </div>
+        <div id="edCustomRow" style="display:${cfg.mode==="custom"?"block":"none"};"><button type="button" id="edOpenQBtn" class="btn btn-sec btn-sm" style="width:100%;min-height:38px;">🛠️ Настроить очередь заданий</button></div>`;
+      const mSel = document.getElementById("edTaskMode");
+      mSel.onchange = () => {
+        window.saveProfile15Config("alarm", { mode: mSel.value });
+        document.getElementById("edSingleRow").style.display = mSel.value === "single" ? "block" : "none";
+        document.getElementById("edRndRow").style.display = mSel.value === "random" ? "flex" : "none";
+        document.getElementById("edCustomRow").style.display = mSel.value === "custom" ? "block" : "none";
+      };
+      document.getElementById("edSingleSel").onchange = e => window.saveProfile15Config("alarm", { singleId: Number(e.target.value) });
+      document.getElementById("edRndCnt").oninput = e => window.saveProfile15Config("alarm", { rndCnt: Math.max(1, Math.min(25, Number(e.target.value) || 1)) });
+      document.getElementById("edAll25Btn").onclick = () => { document.getElementById("edRndCnt").value = "25"; window.saveProfile15Config("alarm", { rndCnt: 25 }); };
+      document.getElementById("edOpenQBtn").onclick = () => window.openProfileQueueModal("alarm", () => {});
+    }
+
+    const sndSel = document.getElementById("edModSnd");
+    sndSel.value = (alarmObj && alarmObj.sound) ? alarmObj.sound : (localStorage.getItem("sa_last_sound") || "random");
+    document.getElementById("edModRnd").onclick = () => { sndSel.value = "random"; };
+
+    let playing = false;
+    document.getElementById("edModPrv").onclick = e => {
+      playing = !playing;
+      if (playing) {
+        const v = Number(document.getElementById("edModVolRng").value) || 75;
+        if (window.SoundPack) window.SoundPack.play(sndSel.value, v, window.db || null, true);
+        e.target.innerText = "⏹ Стоп";
+      } else {
+        if (window.SoundPack) window.SoundPack.stop();
+        e.target.innerText = "▶️ Слушать";
+      }
+    };
+
+    const volRng = document.getElementById("edModVolRng");
+    volRng.oninput = e => { document.getElementById("edModVolTxt").innerText = e.target.value + "%"; };
+    document.getElementById("edModClose").onclick = () => { if (window.SoundPack) window.SoundPack.stop(); m.remove(); };
+
+    document.getElementById("edModSave").onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      const newTime = document.getElementById("edModTime").value || "07:30";
+      const newLabel = document.getElementById("edModLabel").value.trim() || "Утренний будильник";
+      const newSnd = sndSel.value, newVol = Number(volRng.value) || 75;
+      localStorage.setItem("sa_last_sound", newSnd);
+      if (window.setProfileVolume) window.setProfileVolume("alarm", newVol);
+
+      const sMap = JSON.parse(localStorage.getItem("sa_per_alarm_snd") || "{}"); sMap[newTime] = newSnd; localStorage.setItem("sa_per_alarm_snd", JSON.stringify(sMap));
+      const vMap = JSON.parse(localStorage.getItem("sa_per_alarm_vol") || "{}"); vMap[newTime] = newVol; localStorage.setItem("sa_per_alarm_vol", JSON.stringify(vMap));
+
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+      if (alarmIndex >= 0 && list[alarmIndex]) {
+        Object.assign(list[alarmIndex], { time: newTime, label: newLabel, name: newLabel, sound: newSnd, vol: newVol, enabled: true });
+      } else {
+        list.push({ id: Date.now(), time: newTime, label: newLabel, name: newLabel, sound: newSnd, vol: newVol, enabled: true, days: [] });
+      }
+      localStorage.setItem("sa_alarms", JSON.stringify(list)); localStorage.setItem("alarms", JSON.stringify(list));
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) { alarms.length = 0; list.forEach(x => alarms.push(x)); }
+      if (typeof window.renderAlarms === "function") window.renderAlarms();
+      if (typeof window.pushExactAlarmSchedule === "function") window.pushExactAlarmSchedule();
+      m.remove();
+    };
+
+    const delBtn = document.getElementById("edModDelete");
+    if (delBtn) delBtn.onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+      if (alarmIndex >= 0) list.splice(alarmIndex, 1);
+      localStorage.setItem("sa_alarms", JSON.stringify(list)); localStorage.setItem("alarms", JSON.stringify(list));
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) { alarms.length = 0; list.forEach(x => alarms.push(x)); }
+      if (typeof window.renderAlarms === "function") window.renderAlarms();
+      if (typeof window.pushExactAlarmSchedule === "function") window.pushExactAlarmSchedule();
+      m.remove();
+    };
+  };
+
+  document.addEventListener("click", function(e) {
+    if (e.target.closest(".modal") || e.target.closest("#saFullLockScreen") || e.target.closest('input[type="checkbox"], .switch, .toggle, label')) return;
+    const card = e.target.closest(".alarm-card, .alarm-item, .card, li, div");
+    if (!card || card.tagName === "BODY" || card.tagName === "HTML") return;
+    const cardText = card.innerText || "";
+    const timeMatch = cardText.match(/\b(\d|2[0-3]):([0-5]\d)\b/);
+    if (timeMatch && cardText.length < 220 && !cardText.toLowerCase().includes("тест звонка")) {
+      const clickedTime = timeMatch.at(0);
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (err) {}
+      const idx = list.findIndex(a => a && a.time === clickedTime);
+      e.preventDefault(); e.stopImmediatePropagation();
+      window.openEditSpecificAlarmModal(idx >= 0 ? list[idx] : { time: clickedTime, label: "Утренний будильник" }, idx);
+    }
+  }, true);
+})();
