@@ -503,7 +503,7 @@
       const melSel = modal.querySelector(".sa-mel-sel");
       if (!melSel) return;
 
-      const enabled = localStorage.getItem("sa_logic25_on") === "1";
+      const enabled = null === "1";
       const count = Number(localStorage.getItem("sa_logic25_cnt") || 2);
 
       const box = document.createElement("div");
@@ -511,7 +511,7 @@
       box.style.cssText = "margin-bottom:12px;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
       box.innerHTML = `
         <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;font-weight:700;">
-          <span>🧠 Логические задания при пробуждении</span>
+          <span></span>
           <input type="checkbox" id="saL25Chk" ${enabled ? "checked" : ""} style="width:20px;height:20px;accent-color:#10b981;">
         </label>
         <div id="saL25Sub" style="display:${enabled ? "flex" : "none"};align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid #2a2e3d;font-size:12px;color:#8b92a5;">
@@ -529,13 +529,13 @@
       const chk = box.querySelector("#saL25Chk");
       const sub = box.querySelector("#saL25Sub");
       const cntSel = box.querySelector("#saL25Cnt");
-      chk.onchange = () => { localStorage.setItem("sa_logic25_on", chk.checked ? "1" : "0"); sub.style.display = chk.checked ? "flex" : "none"; };
+      chk.onchange = () => {  sub.style.display = chk.checked ? "flex" : "none"; };
       cntSel.onchange = () => localStorage.setItem("sa_logic25_cnt", cntSel.value);
     });
 
     const testRunBtn = document.getElementById("tCfgRun");
     if (testRunBtn && !document.getElementById("tCfgL25Box")) {
-      const enabled = localStorage.getItem("sa_logic25_on") === "1";
+      const enabled = null === "1";
       const count = Number(localStorage.getItem("sa_logic25_cnt") || 2);
       const lBox = document.createElement("div");
       lBox.id = "tCfgL25Box";
@@ -561,7 +561,7 @@
       testRunBtn.before(lBox);
 
       const tChk = document.getElementById("tCfgL25Chk"), tSub = document.getElementById("tCfgL25Sub"), tCnt = document.getElementById("tCfgL25Cnt");
-      tChk.onchange = () => { localStorage.setItem("sa_logic25_on", tChk.checked ? "1" : "0"); tSub.style.display = tChk.checked ? "block" : "none"; };
+      tChk.onchange = () => {  tSub.style.display = tChk.checked ? "block" : "none"; };
       tCnt.onchange = () => localStorage.setItem("sa_logic25_cnt", tCnt.value);
       document.getElementById("tCfgTryOneL25").onclick = () => {
         const snd = document.getElementById("tCfgSound")?.value || "random";
@@ -633,13 +633,7 @@
   const prevWake = window.onNativeWake;
   window.onNativeWake = function(d) {
     d = d || {};
-    if (localStorage.getItem("sa_logic25_on") === "1" && window.Logic25Pack) {
-      const cnt = Number(localStorage.getItem("sa_logic25_cnt") || 2);
-      const snd = (d.sound && d.sound !== "random") ? d.sound : (localStorage.getItem("sa_last_sound") || "random");
-      window.launchLogic25AlarmScreen(d.title || "⏰ БУДИЛЬНИК", snd, cnt);
-      if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 1000);
-      return;
-    }
+    
     if (prevWake) prevWake(d);
   };
 })();
@@ -2800,4 +2794,18 @@
     const edModal = document.getElementById("saEditSpecificModal");
     if (edModal) edModal.querySelectorAll(".sa-injected-mel-box, #saLogic25Box").forEach(el => el.remove());
   }, 200);
+})();
+(function purgeLegacyLogic25CheckboxAndBind25Only() {
+  localStorage.removeItem("sa_logic25_on");
+  localStorage.removeItem("sa_logic25_cnt");
+
+  // Удаляем из DOM любые остатки старого блока с чекбоксом
+  function removeLegacyBox() {
+    document.querySelectorAll("#saLogic25Box, #saL25Chk, #saL25Sub, #saL25Cnt").forEach(el => {
+      const host = el.id === "saLogic25Box" ? el : (el.closest("#saLogic25Box") || el.parentElement);
+      if (host) host.remove();
+    });
+  }
+  removeLegacyBox();
+  setInterval(removeLegacyBox, 150);
 })();
