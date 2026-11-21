@@ -1806,7 +1806,7 @@
         time: "07:30",
         label: "Утренний будильник",
         name: "Утренний будильник",
-        days:,
+        days: [1,2,3,4,5],
         sound: "random",
         vol: 75,
         task: "random",
