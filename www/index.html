@@ -32,12 +32,7 @@
     <div class="fg"><label>Интервал (минут)</label><input type="number" class="inp" id="serStep" value="10" min="1" max="120"></div>
     <div id="serPreview" style="font-size:12px; color:var(--accent-light); margin-bottom:12px;"></div>
     <div class="fg"><label>Задание для серии</label>
-      <select class="inp" id="serType">
-        <option value="combo">🔥 Все 7 заданий по очереди</option>
-        <option value="math">1. Математика</option><option value="code">2. Код тревоги</option>
-        <option value="memory">3. Плитки памяти</option><option value="pairs">4. Найди пары</option>
-        <option value="smash">5. Раздави мишени</option><option value="riddle">6. Загадка</option><option value="odd">7. Найди лишнее</option>
-      </select>
+      <div id="native25TasksMount"></div>
     </div>
     <div class="fg"><label>Сложность (1-5): <span id="serDiffLbl">3</span></label><input type="range" id="serDiff" min="1" max="5" value="3" style="width:100%;"></div>
     <button type="button" class="btn-main" id="btnCreateSeries">Создать серию будильников</button>
@@ -93,12 +88,7 @@
       </div>
     </div>
     <div class="fg"><label>Задание (7 видов + марафон)</label>
-      <select class="inp" id="mType">
-        <option value="combo">🔥 Все 7 заданий по очереди</option>
-        <option value="math">1. Математика</option><option value="code">2. Код тревоги</option>
-        <option value="memory">3. Плитки памяти</option><option value="pairs">4. Найди пары</option>
-        <option value="smash">5. Раздави мишени</option><option value="riddle">6. Загадка</option><option value="odd">7. Найди лишнее</option>
-      </select>
+      <div id="native25TasksMount"></div>
     </div>
     <div class="fg"><label>Сложность: <span id="mDiffLbl">3</span> • Раундов: <span id="mCntLbl">3</span></label>
       <div class="row-2" style="margin-top:4px;">

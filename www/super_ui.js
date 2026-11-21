@@ -2108,3 +2108,44 @@
     if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 1000);
   };
 })();
+(function mountFull25IntoNativeModal() {
+  setInterval(() => {
+    const mount = document.getElementById("native25TasksMount");
+    if (mount && !mount.dataset.mounted25 && window.getProfile15Config) {
+      mount.dataset.mounted25 = "1";
+      const cfg = window.getProfile15Config("alarm");
+      const allT = (window.Logic25Pack || window.Logic15Pack)?.TASKS || [];
+      const opts = allT.map(t => `<option value="${t.id}" ${cfg.singleId===t.id?"selected":""}>№${t.id}. ${t.title}</option>`).join("");
+      mount.innerHTML = `
+        <div style="padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;margin:8px 0;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px;">🧠 Логические задания (база из 25 задач)</div>
+          <select id="nat25Mode" style="width:100%;min-height:40px;margin-bottom:8px;">
+            <option value="none" ${cfg.mode==="none"?"selected":""}>0. Без заданий (0 заданий)</option>
+            <option value="single" ${cfg.mode==="single"?"selected":""}>🎯 Выбрать 1 конкретное задание</option>
+            <option value="random" ${cfg.mode==="random"?"selected":""}>🎲 Случайный выбор (без повторов)</option>
+            <option value="custom" ${cfg.mode==="custom"?"selected":""}>🧩 Своя очередь</option>
+          </select>
+          <div id="nat25Single" style="display:${cfg.mode==="single"?"block":"none"};margin-bottom:6px;"><select id="nat25SingleSel" style="width:100%;min-height:38px;">${opts}</select></div>
+          <div id="nat25Rnd" style="display:${cfg.mode==="random"?"flex":"none"};gap:6px;align-items:center;margin-bottom:6px;">
+            <span style="font-size:12px;color:#8b92a5;">Кол-во (1–25):</span>
+            <input type="number" id="nat25RndCnt" min="1" max="25" value="${cfg.rndCnt}" style="width:65px;min-height:36px;text-align:center;">
+            <button type="button" id="nat25All25" class="btn btn-sec btn-sm" style="flex:1;min-height:36px;font-size:12px;">Все 25 заданий</button>
+          </div>
+          <div id="nat25Custom" style="display:${cfg.mode==="custom"?"block":"none"};">
+            <button type="button" id="nat25OpenQ" class="btn btn-sec btn-sm" style="width:100%;min-height:38px;">🛠️ Настроить свою очередь</button>
+          </div>
+        </div>`;
+      const mSel = document.getElementById("nat25Mode");
+      mSel.onchange = () => {
+        window.saveProfile15Config("alarm", { mode: mSel.value });
+        document.getElementById("nat25Single").style.display = mSel.value === "single" ? "block" : "none";
+        document.getElementById("nat25Rnd").style.display = mSel.value === "random" ? "flex" : "none";
+        document.getElementById("nat25Custom").style.display = mSel.value === "custom" ? "block" : "none";
+      };
+      document.getElementById("nat25SingleSel").onchange = e => window.saveProfile15Config("alarm", { singleId: Number(e.target.value) });
+      document.getElementById("nat25RndCnt").oninput = e => window.saveProfile15Config("alarm", { rndCnt: Math.max(1, Math.min(25, Number(e.target.value) || 1)) });
+      document.getElementById("nat25All25").onclick = () => { document.getElementById("nat25RndCnt").value = "25"; window.saveProfile15Config("alarm", { rndCnt: 25 }); };
+      document.getElementById("nat25OpenQ").onclick = () => window.openProfileQueueModal("alarm", () => {});
+    }
+  }, 250);
+})();
