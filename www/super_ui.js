@@ -1781,3 +1781,76 @@
     }
   }, true);
 })();
+(function migrateCorruptedAlarmsAndFixCardTap() {
+  // 1. Жёсткая очистка localStorage от записей с битыми символами CP866 (╨, ╤, ╞, ╧) и пересоздание дефолтного 07:30
+  function sanitizeStorageAndRecreateDefault() {
+    const badChars = /[\u2550-\u256C\u00D0\u00D1\uFFFD]/;
+    let wiped = false;
+
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      const v = localStorage.getItem(k) || "";
+      if (badChars.test(v)) {
+        localStorage.removeItem(k);
+        wiped = true;
+      }
+    }
+
+    const keys = ["sa_alarms", "alarms"];
+    let currentList = [];
+    try { currentList = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+
+    if (wiped || !Array.isArray(currentList) || currentList.length === 0) {
+      const cleanDefault = [{
+        id: 1,
+        time: "07:30",
+        label: "Утренний будильник",
+        name: "Утренний будильник",
+        days:,
+        sound: "random",
+        vol: 75,
+        task: "random",
+        enabled: true
+      }];
+      keys.forEach(k => localStorage.setItem(k, JSON.stringify(cleanDefault)));
+      if (typeof alarms !== "undefined" && Array.isArray(alarms)) {
+        alarms.length = 0;
+        cleanDefault.forEach(x => alarms.push(x));
+      }
+    }
+  }
+  sanitizeStorageAndRecreateDefault();
+
+  // 2. Прямая привязка клика и тапа на каждую карточку будильника после отрисовки списка
+  function bindDirectCardClicks() {
+    document.querySelectorAll("#alarmsList > *, .alarm-card, .alarm-item, .card").forEach(card => {
+      if (card.dataset.cardEditBound) return;
+      const txt = card.innerText || "";
+      const m = txt.match(/\b(\d|2[0-3]):([0-5]\d)\b/);
+      if (!m || txt.toLowerCase().includes("тест звонка")) return;
+
+      card.dataset.cardEditBound = "1";
+      card.style.cursor = "pointer";
+      card.style.pointerEvents = "auto";
+
+      card.addEventListener("click", function(ev) {
+        // Не перехватываем клик по переключателю вкл/выкл справа
+        if (ev.target.closest('input[type="checkbox"], .switch, .toggle, label')) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        const tStr = m.at(0);
+        let list = [];
+        try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+        const idx = list.findIndex(a => a && a.time === tStr);
+        const obj = idx >= 0 ? list[idx] : { time: tStr, label: "Утренний будильник", vol: 75, sound: "random" };
+        if (window.openEditSpecificAlarmModal) {
+          window.openEditSpecificAlarmModal(obj, idx);
+        }
+      }, true);
+    });
+  }
+
+  setInterval(bindDirectCardClicks, 300);
+  if (typeof window.renderAlarms === "function") setTimeout(window.renderAlarms, 100);
+})();
