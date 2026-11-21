@@ -2355,3 +2355,180 @@
     });
   }, 250);
 })();
+(function fullLockscreenTasksAnd5SecDucking() {
+  let sliderTargetVol = 75;
+  let liveAppliedVol = 75;
+  let idleRestoreTimer = null;
+
+  function setLockedVolumeExact(pct) {
+    liveAppliedVol = Math.max(10, Math.min(100, Math.round(pct)));
+    if (window.AndroidLock && window.AndroidLock.setVolume) {
+      window.AndroidLock.setVolume(liveAppliedVol);
+    }
+    document.querySelectorAll("audio").forEach(a => {
+      try {
+        a.muted = false;
+        a.volume = Math.max(0.05, Math.min(1.0, liveAppliedVol / 100));
+        if (a.paused && document.getElementById("saFullLockScreen")) a.play().catch(() => {});
+      } catch (e) {}
+    });
+  }
+
+  // При касании задания или вводе ответа снижаем громкость на 10% (не ниже 10%), через 5 сек бездействия возвращаем
+  function onTaskInteractDuck10() {
+    if (!document.getElementById("saFullLockScreen")) return;
+    if (!window.ringQueue || window.ringQueue.at(0) === "none") return;
+
+    const ducked = Math.max(10, sliderTargetVol - 10);
+    setLockedVolumeExact(ducked);
+
+    clearTimeout(idleRestoreTimer);
+    idleRestoreTimer = setTimeout(() => {
+      if (document.getElementById("saFullLockScreen")) {
+        setLockedVolumeExact(sliderTargetVol);
+      }
+    }, 5000);
+  }
+
+  document.addEventListener("pointerdown", e => {
+    if (e.target && e.target.closest("#saLockTaskBox")) onTaskInteractDuck10();
+  }, true);
+  document.addEventListener("input", e => {
+    if (e.target && e.target.closest("#saLockTaskBox")) onTaskInteractDuck10();
+  }, true);
+
+  // Главный запуск будильника с заданиями поверх экрана блокировки (использует индивидуальные настройки будильника)
+  window.launchLockedTasksOverLockscreen = function(opts) {
+    opts = opts || {};
+    const title = opts.title || "⏰ БУДИЛЬНИК";
+    const label = opts.label || "Утренний будильник";
+    const snd = opts.sound || localStorage.getItem("sa_last_sound") || "random";
+    sliderTargetVol = Math.max(10, Math.min(100, Number(opts.vol) || 75));
+    liveAppliedVol = sliderTargetVol;
+
+    const mode = opts.taskMode || "random";
+    const singleId = Math.max(1, Math.min(25, Number(opts.taskSingleId) || 1));
+    const rndCnt = Math.max(1, Math.min(25, Number(opts.taskRndCnt) || 2));
+    const customQ = Array.isArray(opts.taskQueue) ? opts.taskQueue : [];
+
+    let taskQueue = new Array();
+    if (mode === "single") {
+      taskQueue = new Array(singleId);
+    } else if (mode === "random" && window.Logic25Pack) {
+      taskQueue = window.Logic25Pack.buildRandomQueue(rndCnt);
+    } else if (mode === "custom") {
+      taskQueue = Array.from(customQ);
+    }
+
+    // Если выбрано 0 заданий — открываем полноэкранный режим без блокировки
+    if (mode === "none" || taskQueue.length === 0) {
+      if (window.showFullLockScreenZeroAlarm) {
+        window.showFullLockScreenZeroAlarm(title, label, snd, sliderTargetVol, opts.timeKey || "");
+      }
+      return;
+    }
+
+    window.ringQueue = taskQueue.map(id => "l25_" + id);
+    if (window.SoundPack) window.SoundPack.play(snd, sliderTargetVol, window.db || null, false);
+    if (window.AndroidLock && window.AndroidLock.setRinging) {
+      window.AndroidLock.setRinging(true, sliderTargetVol, true);
+    }
+    setLockedVolumeExact(sliderTargetVol);
+    try { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {}
+
+    let ov = document.getElementById("saFullLockScreen");
+    if (ov) ov.remove();
+    ov = document.createElement("div");
+    ov.id = "saFullLockScreen";
+    ov.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:linear-gradient(180deg,#0b0d14 0%,#141826 100%);z-index:999999;display:flex;flex-direction:column;justify-content:space-between;padding:18px;box-sizing:border-box;color:#fff;overflow-y:auto;";
+
+    const curName = window.SoundPack && window.SoundPack.getCurrentName ? window.SoundPack.getCurrentName() : "Мелодия будильника";
+    ov.innerHTML = `
+      <div style="text-align:center;">
+        <div style="font-size:13px;font-weight:800;letter-spacing:1.2px;color:#ff2a4b;text-transform:uppercase;">${title}</div>
+        <div id="saTasksLiveClock" style="font-size:52px;font-weight:900;line-height:1.05;margin:4px 0;">${new Date().toTimeString().slice(0,5)}</div>
+        <div style="font-size:16px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">${label}</div>
+        <div id="saLockProg" style="font-size:14px;color:#10b981;font-weight:800;"></div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:4px;">🎵 ${curName} • 🔊 Громкость: ${sliderTargetVol}%</div>
+      </div>
+      <div id="saLockTaskBox" style="background:#161822;border:2px solid #2a2e3d;border-radius:18px;padding:16px;margin:auto 0;"></div>
+      <div style="text-align:center;font-size:12px;color:#ff2a4b;font-weight:700;margin-top:10px;">
+        🔒 Выход, шторка и кнопки громкости заблокированы до решения всех заданий
+      </div>
+    `;
+    document.body.appendChild(ov);
+
+    const clockTick = setInterval(() => {
+      const el = document.getElementById("saTasksLiveClock");
+      if (el) el.innerText = new Date().toTimeString().slice(0, 5);
+      else clearInterval(clockTick);
+      if (document.getElementById("saFullLockScreen")) setLockedVolumeExact(liveAppliedVol);
+    }, 500);
+
+    let idx = 0;
+    const tBox = document.getElementById("saLockTaskBox");
+    const prog = document.getElementById("saLockProg");
+
+    const finishAndUnlock = () => {
+      clearInterval(clockTick);
+      clearTimeout(idleRestoreTimer);
+      window.ringQueue = new Array("none");
+      if (window.SoundPack) window.SoundPack.stop();
+      if (window.AndroidLock && window.AndroidLock.setRinging) {
+        window.AndroidLock.setRinging(false, sliderTargetVol, false);
+      }
+      try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
+
+      if (opts.timeKey) {
+        try {
+          let list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+          let changed = false;
+          list.forEach(a => {
+            if (a && a.time === opts.timeKey && (!Array.isArray(a.days) || a.days.length === 0)) {
+              a.enabled = false;
+              changed = true;
+            }
+          });
+          if (changed) {
+            localStorage.setItem("sa_alarms", JSON.stringify(list));
+            localStorage.setItem("alarms", JSON.stringify(list));
+          }
+        } catch (e) {}
+      }
+      ov.remove();
+      if (window.pushExactAlarmSchedule) setTimeout(window.pushExactAlarmSchedule, 400);
+    };
+
+    const showStep = () => {
+      if (idx >= taskQueue.length) {
+        finishAndUnlock();
+        return;
+      }
+      prog.innerText = `Задание ${idx + 1} из ${taskQueue.length}`;
+      const pack = window.Logic25Pack || window.Logic15Pack;
+      if (pack) {
+        pack.renderById(taskQueue.at(idx), tBox, () => {
+          idx++;
+          showStep();
+        }, () => {
+          clearTimeout(idleRestoreTimer);
+          setLockedVolumeExact(sliderTargetVol);
+          tBox.style.borderColor = "#ff2a4b";
+          setTimeout(() => tBox.style.borderColor = "#2a2e3d", 400);
+        });
+      }
+    };
+    showStep();
+  };
+
+  // Переопределяем пробуждение из Android: гарантированно запускаем полноэкранные задания поверх блокировки
+  window.onNativeWake = function(d) {
+    d = d || {};
+    window.launchLockedTasksOverLockscreen(d);
+  };
+
+  // При старте приложения сразу синхронизируем сохранённое расписание с нативным AlarmManager
+  setTimeout(() => {
+    if (window.pushExactAlarmSchedule) window.pushExactAlarmSchedule();
+  }, 500);
+})();
