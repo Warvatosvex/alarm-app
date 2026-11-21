@@ -1493,3 +1493,116 @@
     });
   }, 250);
 })();
+(function forceMainAlarmButtonClickable() {
+  // 1. В спокойном режиме (когда нет активного звонка) все скрытые модалки не должны перехватывать клики
+  function unblockMainScreenElements() {
+    if (document.getElementById("saFullLockScreen")) return;
+
+    document.querySelectorAll(".modal").forEach(m => {
+      if (m.id === "saTestCfgModal" || m.id === "saProfileQModal") return;
+      const isShown = m.classList.contains("active") || m.style.display === "flex" || m.style.display === "block";
+      if (!isShown) {
+        m.style.pointerEvents = "none";
+      } else {
+        m.style.pointerEvents = "auto";
+      }
+    });
+
+    // Делаем все кнопки и карточки будильников гарантированно кликабельными
+    document.querySelectorAll("button, .alarm-card, .alarm-item, [onclick]").forEach(el => {
+      if (!el.closest("#saTestCfgModal") && !el.closest("#saProfileQModal")) {
+        el.disabled = false;
+        el.removeAttribute("disabled");
+        el.style.pointerEvents = "auto";
+      }
+    });
+  }
+
+  unblockMainScreenElements();
+  setInterval(unblockMainScreenElements, 400);
+
+  // 2. Гарантированное открытие окна настроек основного будильника, если штатный обработчик не сработал
+  window.openMainAlarmEditorFallback = function(existingAlarm) {
+    // Сначала пробуем вызвать штатную модалку из app.js, если она есть в DOM
+    const nativeModal = document.getElementById("alarmModal") || document.querySelector(".modal:not(#saTestCfgModal):not(#saProfileQModal)");
+    if (nativeModal) {
+      nativeModal.style.display = "flex";
+      nativeModal.classList.add("active");
+      nativeModal.style.pointerEvents = "auto";
+      nativeModal.style.zIndex = "5000";
+      return;
+    }
+
+    // Если штатной модалки нет — открываем полноценное окно настроек основного будильника
+    let m = document.getElementById("saMainAlarmModal");
+    if (m) m.remove();
+    m = document.createElement("div");
+    m.id = "saMainAlarmModal";
+    m.className = "modal active";
+    m.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;background:rgba(0,0,0,0.86);display:flex;justify-content:center;align-items:center;padding:14px;z-index:15000;box-sizing:border-box;pointer-events:auto;";
+
+    const curTime = (existingAlarm && existingAlarm.time) ? existingAlarm.time : "07:30";
+    const curLabel = (existingAlarm && existingAlarm.label) ? existingAlarm.label : "Утренний будильник";
+
+    m.innerHTML = `
+      <div style="width:100%;max-width:380px;max-height:92vh;overflow-y:auto;background:#161822;border:1px solid #2a2e3d;border-radius:18px;padding:16px;box-sizing:border-box;color:#fff;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <b style="font-size:17px;">⏰ Настройка будильника</b>
+          <button type="button" id="saMainModClose" class="btn btn-sec btn-sm" style="min-height:34px;padding:0 10px;">✕</button>
+        </div>
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Время срабатывания</label>
+        <input type="time" id="saMainModTime" value="${curTime}" style="width:100%;min-height:46px;font-size:22px;font-weight:800;text-align:center;margin-bottom:10px;">
+        <label style="display:block;font-size:12px;color:#8b92a5;margin-bottom:4px;">Название / метка</label>
+        <input type="text" id="saMainModLabel" value="${curLabel}" placeholder="Например: Работа" style="width:100%;min-height:40px;margin-bottom:10px;">
+        <button type="button" id="saMainModSave" class="btn" style="width:100%;min-height:48px;font-size:16px;margin-top:8px;">💾 Сохранить будильник</button>
+      </div>
+    `;
+    document.body.appendChild(m);
+
+    document.getElementById("saMainModClose").onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      m.remove();
+    };
+
+    document.getElementById("saMainModSave").onclick = () => {
+      if (window.SoundPack) window.SoundPack.stop();
+      const tVal = document.getElementById("saMainModTime").value || "07:30";
+      const lVal = document.getElementById("saMainModLabel").value.trim() || "Будильник";
+      const melVal = m.querySelector(".sa-mel-sel")?.value || localStorage.getItem("sa_last_sound") || "random";
+      const volVal = window.getProfileVolume ? window.getProfileVolume("alarm") : 75;
+
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]"); } catch (e) {}
+      const idx = list.findIndex(a => a && a.time === tVal);
+      const item = { id: Date.now(), time: tVal, label: lVal, enabled: true, sound: melVal, vol: volVal, days: [] };
+      if (idx >= 0) list[idx] = Object.assign(list[idx], item);
+      else list.push(item);
+
+      localStorage.setItem("sa_alarms", JSON.stringify(list));
+      localStorage.setItem("alarms", JSON.stringify(list));
+      if (typeof window.renderAlarms === "function") window.renderAlarms();
+      if (typeof window.pushExactAlarmSchedule === "function") window.pushExactAlarmSchedule();
+      m.remove();
+    };
+  };
+
+  // 3. Перехватываем клики по кнопкам создания/настройки основного будильника, если модалка не открылась сама за 80 мс
+  document.addEventListener("click", function(e) {
+    if (e.target.closest("#saTestCfgModal") || e.target.closest("#saProfileQModal") || e.target.closest("#saMainAlarmModal") || e.target.closest("#saFullLockScreen")) return;
+    const btn = e.target.closest("button, .alarm-card, .alarm-item, [data-action='add-alarm']");
+    if (!btn) return;
+
+    const txt = (btn.innerText || "").trim().toLowerCase();
+    if (txt.includes("тест")) return; // Кнопку теста не трогаем
+
+    const isAlarmAction = txt === "+" || txt.includes("добавить") || txt.includes("будильник") || txt.includes("настро") || btn.classList.contains("alarm-card") || btn.classList.contains("alarm-item");
+    if (isAlarmAction) {
+      setTimeout(() => {
+        const anyOpen = Array.from(document.querySelectorAll(".modal")).some(m => m.id !== "saTestCfgModal" && (m.classList.contains("active") || m.style.display === "flex" || m.style.display === "block"));
+        if (!anyOpen) {
+          window.openMainAlarmEditorFallback(null);
+        }
+      }, 80);
+    }
+  }, false);
+})();
