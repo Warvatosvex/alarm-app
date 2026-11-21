@@ -2532,3 +2532,115 @@
     if (window.pushExactAlarmSchedule) window.pushExactAlarmSchedule();
   }, 500);
 })();
+(function perAlarmIndividualDifficulty10() {
+  let activeRingDiff10 = 5;
+
+  // Отслеживаем какой именно будильник открыт на редактирование, чтобы подставить его личный taskDiff (1-10)
+  const origOpenEdit = window.openEditSpecificAlarmModal;
+  if (typeof origOpenEdit === "function" && !origOpenEdit._diff10Wrapped) {
+    window.openEditSpecificAlarmModal = function(alarmObj, alarmIndex) {
+      window._editingAlarmDiff10 = (alarmObj && alarmObj.taskDiff) ? Math.max(1, Math.min(10, Number(alarmObj.taskDiff))) : (window.getProfileDiff10 ? window.getProfileDiff10("alarm") : 5);
+      origOpenEdit(alarmObj, alarmIndex);
+
+      setTimeout(() => {
+        const rng = document.getElementById("edDiff10Rng");
+        const lbl = document.getElementById("edDiff10Lbl");
+        if (rng && lbl) {
+          rng.value = String(window._editingAlarmDiff10);
+          lbl.innerText = window.getDiffLabel10 ? window.getDiffLabel10(window._editingAlarmDiff10) : (window._editingAlarmDiff10 + "/10");
+          rng.oninput = () => {
+            window._editingAlarmDiff10 = Math.max(1, Math.min(10, Number(rng.value) || 5));
+            lbl.innerText = window.getDiffLabel10(window._editingAlarmDiff10);
+            window.setProfileDiff10("alarm", window._editingAlarmDiff10);
+          };
+        }
+
+        // При нажатии "Сохранить" записываем личный taskDiff внутрь этого будильника в localStorage
+        const saveBtn = document.getElementById("edModSave");
+        if (saveBtn) {
+          saveBtn.addEventListener("click", () => {
+            const chosenDiff = Number(document.getElementById("edDiff10Rng")?.value) || window._editingAlarmDiff10 || 5;
+            const savedTime = document.getElementById("edModTime")?.value || "";
+            setTimeout(() => {
+              try {
+                let list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+                if (typeof alarmIndex === "number" && alarmIndex >= 0 && list[alarmIndex]) {
+                  list[alarmIndex].taskDiff = chosenDiff;
+                } else {
+                  const found = list.slice().reverse().find(a => a && a.time === savedTime);
+                  if (found) found.taskDiff = chosenDiff;
+                }
+                localStorage.setItem("sa_alarms", JSON.stringify(list));
+                localStorage.setItem("alarms", JSON.stringify(list));
+                if (window.pushExactAlarmSchedule) window.pushExactAlarmSchedule();
+              } catch (e) {}
+            }, 80);
+          }, true);
+        }
+      }, 60);
+    };
+    window.openEditSpecificAlarmModal._diff10Wrapped = true;
+  }
+
+  // Переопределяем запуск тревоги с поддержкой личного taskDiff каждого будильника
+  const origLaunchTasks = window.launchLockedTasksOverLockscreen;
+  if (typeof origLaunchTasks === "function" && !origLaunchTasks._diff10Wrapped) {
+    window.launchLockedTasksOverLockscreen = function(opts) {
+      opts = opts || {};
+      activeRingDiff10 = Math.max(1, Math.min(10, Number(opts.taskDiff) || window.getProfileDiff10("alarm")));
+      return origLaunchTasks(opts);
+    };
+    window.launchLockedTasksOverLockscreen._diff10Wrapped = true;
+  }
+
+  // Гарантируем, что при отрисовке любой задачи (1..25) в любом режиме ("single", "random", "custom") передаётся точный уровень 1-10
+  if (window.Logic25Pack) {
+    const baseRender = window.Logic25Pack.renderById;
+    window.Logic25Pack.renderById = function(taskId, box, onSolved, onWrong, explicitDiff) {
+      const screenTxt = document.getElementById("saFullLockScreen")?.innerText || "";
+      const isTest = screenTxt.includes("ТЕСТ");
+      const finalLvl = explicitDiff || (isTest ? window.getProfileDiff10("test") : activeRingDiff10);
+      return baseRender(taskId, box, onSolved, onWrong, finalLvl);
+    };
+  }
+
+  // Передаём taskDiff конкретного будильника в нативный планировщик Android
+  const prevPush = window.pushExactAlarmSchedule;
+  window.pushExactAlarmSchedule = function() {
+    if (prevPush) prevPush();
+    if (!window.AndroidLock || !window.AndroidLock.scheduleNextAlarmWithData) return;
+    try {
+      const list = JSON.parse(localStorage.getItem("sa_alarms") || localStorage.getItem("alarms") || "[]");
+      const now = new Date();
+      let bestTs = 0, bestAlarm = null;
+      list.filter(a => a && a.enabled).forEach(a => {
+        const [hh, mm] = String(a.time || "07:30").split(":").map(Number);
+        const days = Array.isArray(a.days) ? a.days : [];
+        for (let d = 0; d <= 7; d++) {
+          const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, hh, mm, 0, 0);
+          if (cand.getTime() > now.getTime() && (days.length === 0 || days.includes(cand.getDay()))) {
+            if (bestTs === 0 || cand.getTime() < bestTs) { bestTs = cand.getTime(); bestAlarm = a; }
+            break;
+          }
+        }
+      });
+      if (bestTs > 0 && bestAlarm) {
+        const baseCfg = window.getProfile15Config ? window.getProfile15Config("alarm") : { mode: "random", singleId: 1, rndCnt: 2, queue: [] };
+        const payload = {
+          alarmId: bestAlarm.id || 1,
+          timeKey: bestAlarm.time,
+          title: "⏰ БУДИЛЬНИК",
+          label: bestAlarm.label || "Утренний будильник",
+          sound: bestAlarm.sound || localStorage.getItem("sa_last_sound") || "random",
+          vol: Number(bestAlarm.vol) || 75,
+          taskMode: bestAlarm.taskMode || baseCfg.mode,
+          taskSingleId: Number(bestAlarm.taskSingleId) || baseCfg.singleId,
+          taskRndCnt: Number(bestAlarm.taskRndCnt) || baseCfg.rndCnt,
+          taskQueue: Array.isArray(bestAlarm.taskQueue) ? bestAlarm.taskQueue : baseCfg.queue,
+          taskDiff: Number(bestAlarm.taskDiff) || window.getProfileDiff10("alarm")
+        };
+        window.AndroidLock.scheduleNextAlarmWithData(bestTs, JSON.stringify(payload));
+      }
+    } catch (e) {}
+  };
+})();
