@@ -1390,3 +1390,106 @@
     }
   };
 })();
+(function fixMainAlarmSettingsAccess() {
+  // Синхронизируем псевдонимы функций, чтобы ни одна кнопка не падала с ReferenceError
+  if (window.getProfile15Config && !window.getProfile25Config) window.getProfile25Config = window.getProfile15Config;
+  if (window.saveProfile15Config && !window.saveProfile25Config) window.saveProfile25Config = window.saveProfile15Config;
+  if (window.openProfileQueueModal && !window.openLogic25QueueModal) {
+    window.openLogic25QueueModal = (cb) => window.openProfileQueueModal("alarm", cb);
+  }
+
+  // В спокойном режиме (когда будильник не звонит) убираем зависшие прозрачные слои и снимаем нативную блокировку
+  function cleanupIdleOverlays() {
+    const lockScreen = document.getElementById("saFullLockScreen");
+    if (!lockScreen) {
+      window.ringQueue = ["none"];
+      if (window.AndroidLock && window.AndroidLock.setRinging) {
+        try { window.AndroidLock.setRinging(false, Number(localStorage.getItem("sa_vol") || 75), false); } catch (e) {}
+      }
+      // Разблокируем pointer-events на body и html
+      document.documentElement.style.pointerEvents = "auto";
+      document.body.style.pointerEvents = "auto";
+    }
+  }
+  cleanupIdleOverlays();
+  setInterval(cleanupIdleOverlays, 1500);
+
+  // Гарантируем, что при открытии модального окна основного будильника в нём ВСЕГДА отрисованы:
+  // 1) выбор из 120 мелодий + рандом + ползунок громкости 10-100%
+  // 2) панель выбора логических заданий (0 заданий / 1 конкретное / случайные 1-25 / своя очередь)
+  setInterval(() => {
+    document.querySelectorAll(".modal").forEach(modal => {
+      if (modal.id === "saTestCfgModal" || modal.id === "saProfileQModal" || modal.id === "saL15QueueModal" || modal.id === "saL25QueueModal") return;
+      const isVisible = modal.classList.contains("active") || modal.style.display === "flex" || modal.style.display === "block" || modal.offsetParent !== null;
+      if (!isVisible) return;
+
+      // Убеждаемся, что само окно кликабельно и находится поверх подложки
+      modal.style.pointerEvents = "auto";
+      if (!modal.style.zIndex || Number(modal.style.zIndex) < 1000) modal.style.zIndex = "5000";
+
+      // Если внутри модалки основного будильника ещё нет блока выбора мелодии и громкости — создаём его
+      if (!modal.querySelector(".sa-mel-sel")) {
+        const list120 = window.SoundPack ? window.SoundPack.list.map(m => `<option value="${m.id}">🎵 ${m.name}</option>`).join("") : "";
+        const curV = window.getProfileVolume ? window.getProfileVolume("alarm") : 75;
+        const initS = localStorage.getItem("sa_last_sound") || "random";
+
+        const melBox = document.createElement("div");
+        melBox.className = "sa-injected-mel-box";
+        melBox.style.cssText = "margin:10px 0;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
+        melBox.innerHTML = `
+          <label style="display:block;margin-bottom:6px;font-size:12px;color:#8b92a5;font-weight:700;">🎵 Мелодия будильника (120 звуков)</label>
+          <select class="sa-mel-sel" style="width:100%;min-height:40px;margin-bottom:8px;">
+            <option value="random">🎲 Случайная мелодия (без повторов)</option>
+            ${list120}
+          </select>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <button type="button" class="btn btn-sec btn-sm m-rnd" style="flex:1;min-height:36px;">🎲 Рандом</button>
+            <button type="button" class="btn btn-sec btn-sm m-prv" style="flex:1;min-height:36px;">▶️ Слушать</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <span>🔊 Громкость: <b class="m-vl">${curV}%</b></span>
+            <input type="range" class="m-vr" min="10" max="100" value="${curV}" style="flex:1;min-height:28px;">
+          </div>
+        `;
+
+        const saveBtn = Array.from(modal.querySelectorAll("button")).find(b => b.innerText && b.innerText.includes("Сохранить"));
+        const container = saveBtn ? saveBtn.parentElement : (modal.firstElementChild || modal);
+        if (saveBtn && saveBtn.parentElement === container) container.insertBefore(melBox, saveBtn);
+        else container.appendChild(melBox);
+
+        const sel = melBox.querySelector(".sa-mel-sel");
+        sel.value = initS;
+        sel.onchange = () => localStorage.setItem("sa_last_sound", sel.value);
+        melBox.querySelector(".m-rnd").onclick = () => { sel.value = "random"; localStorage.setItem("sa_last_sound", "random"); };
+        let pl = false;
+        melBox.querySelector(".m-prv").onclick = e => {
+          pl = !pl;
+          if (pl) {
+            const v = window.getProfileVolume ? window.getProfileVolume("alarm") : 75;
+            if (window.SoundPack) window.SoundPack.play(sel.value, v, window.db || null, true);
+            e.target.innerText = "⏹ Стоп";
+          } else {
+            if (window.SoundPack) window.SoundPack.stop();
+            e.target.innerText = "▶️ Слушать";
+          }
+        };
+        const rng = melBox.querySelector(".m-vr");
+        const vl = melBox.querySelector(".m-vl");
+        rng.oninput = e => {
+          const nv = window.setProfileVolume ? window.setProfileVolume("alarm", e.target.value) : Number(e.target.value);
+          vl.innerText = nv + "%";
+        };
+      }
+
+      // Если внутри модалки основного будильника ещё нет блока выбора 25 логических задач — создаём его
+      if (!modal.querySelector("#saLogic25Box") && window.getProfile15Config) {
+        const lBox = document.createElement("div");
+        lBox.id = "saLogic25Box";
+        lBox.style.cssText = "margin:10px 0;padding:10px;border-radius:12px;background:#1f222e;border:1px solid #2a2e3d;";
+        const melWrap = modal.querySelector(".sa-injected-mel-box") || modal.querySelector(".sa-mel-sel")?.parentElement;
+        if (melWrap && melWrap.parentElement) melWrap.parentElement.insertBefore(lBox, melWrap);
+        else (modal.firstElementChild || modal).appendChild(lBox);
+      }
+    });
+  }, 250);
+})();
