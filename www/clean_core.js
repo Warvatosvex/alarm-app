@@ -110,10 +110,14 @@
     });
 
     const mSel = document.getElementById("ccModeSel");
+    const initDWrap = document.getElementById("ccDiffRng")?.parentElement;
+    if (initDWrap) initDWrap.style.display = mSel.value === "none" ? "none" : "block";
     mSel.onchange = () => {
       document.getElementById("ccSingleRow").style.display = mSel.value === "single" ? "block" : "none";
       document.getElementById("ccRndRow").style.display = mSel.value === "random" ? "flex" : "none";
       document.getElementById("ccCustomRow").style.display = mSel.value === "custom" ? "block" : "none";
+      const dWrap = document.getElementById("ccDiffRng")?.parentElement;
+      if (dWrap) dWrap.style.display = mSel.value === "none" ? "none" : "block";
     };
 
     document.getElementById("ccAll25Btn").onclick = () => { document.getElementById("ccRndCntIn").value = "25"; };
@@ -259,4 +263,26 @@
   };
 
   setTimeout(() => { if (window.pushExactAlarmSchedule) window.pushExactAlarmSchedule(); }, 400);
+})();
+(function ensureZeroTaskLockscreenWake() {
+  // Единый обработчик пробуждения из Android (как для 0 заданий, так и для >= 1 задания)
+  window.onNativeWake = function(d) {
+    d = d || {};
+    const mode = d.taskMode || "random";
+    const vol = Math.max(10, Math.min(100, Number(d.vol) || 75));
+    const snd = d.sound || "random";
+    const title = d.title || "⏰ БУДИЛЬНИК";
+    const label = d.label || "Утренний будильник";
+
+    if (mode === "none") {
+      if (typeof window.showFullLockScreenZeroAlarm === "function") {
+        window.showFullLockScreenZeroAlarm(title, label, snd, vol, d.timeKey || "");
+      }
+    } else if (typeof window.launchLockedTasksOverLockscreen === "function") {
+      window.launchLockedTasksOverLockscreen(d);
+    }
+    if (typeof window.pushExactAlarmSchedule === "function") {
+      setTimeout(window.pushExactAlarmSchedule, 800);
+    }
+  };
 })();
