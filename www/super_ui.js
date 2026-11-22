@@ -1801,7 +1801,7 @@
       const k = localStorage.key(i);
       const v = localStorage.getItem(k) || "";
       if (badChars.test(v)) {
-        localStorage.removeItem(k);
+        void(0);
         wiped = true;
       }
     }
@@ -1829,7 +1829,7 @@
       }
     }
   }
-  sanitizeStorageAndRecreateDefault();
+  void(0);
 
   // 2. Прямая привязка клика и тапа на каждую карточку будильника после отрисовки списка
   function bindDirectCardClicks() {
