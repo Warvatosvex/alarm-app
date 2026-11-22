@@ -214,3 +214,49 @@
 
   renderAlarmsList();
 })();
+(function linkCleanCoreToNativeAlarmManager() {
+  window.pushExactAlarmSchedule = function() {
+    if (!window.AndroidLock || !window.AndroidLock.scheduleNextAlarmWithData) return;
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem("sa_alarms_v3") || localStorage.getItem("sa_alarms") || "[]"); } catch (e) {}
+
+    const now = new Date();
+    let bestTs = 0, bestAlarm = null;
+
+    list.filter(a => a && a.enabled).forEach(a => {
+      const [hh, mm] = String(a.time || "07:30").split(":").map(Number);
+      const days = Array.isArray(a.days) ? a.days : [];
+      for (let d = 0; d <= 7; d++) {
+        const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, hh, mm, 0, 0);
+        if (cand.getTime() > now.getTime() && (days.length === 0 || days.includes(cand.getDay()))) {
+          if (bestTs === 0 || cand.getTime() < bestTs) { bestTs = cand.getTime(); bestAlarm = a; }
+          break;
+        }
+      }
+    });
+
+    if (bestTs > 0 && bestAlarm) {
+      if (window.AndroidLock.canDrawOverlays && !window.AndroidLock.canDrawOverlays()) {
+        window.AndroidLock.requestOverlayPermission();
+      }
+      const payload = {
+        alarmId: bestAlarm.id || 1,
+        timeKey: bestAlarm.time,
+        title: "⏰ БУДИЛЬНИК",
+        label: bestAlarm.label || "Утренний будильник",
+        sound: bestAlarm.sound || "random",
+        vol: Number(bestAlarm.vol) || 75,
+        taskMode: bestAlarm.taskMode || "random",
+        taskSingleId: Number(bestAlarm.taskSingleId) || 1,
+        taskRndCnt: Number(bestAlarm.taskRndCnt) || 2,
+        taskQueue: Array.isArray(bestAlarm.taskQueue) ? bestAlarm.taskQueue : [],
+        taskDiff: Number(bestAlarm.taskDiff) || 5
+      };
+      window.AndroidLock.scheduleNextAlarmWithData(bestTs, JSON.stringify(payload));
+    } else {
+      window.AndroidLock.scheduleNextAlarmWithData(0, "{}");
+    }
+  };
+
+  setTimeout(() => { if (window.pushExactAlarmSchedule) window.pushExactAlarmSchedule(); }, 400);
+})();

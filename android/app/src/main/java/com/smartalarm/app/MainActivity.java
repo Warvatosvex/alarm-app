@@ -43,38 +43,22 @@ public class MainActivity extends BridgeActivity {
         try {
             volumeObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
                 @Override public void onChange(boolean selfChange) {
-                    if (isAlarmRinging && strictLock) {
-                        setVol(savedVol);
-                    }
+                    if (isAlarmRinging && strictLock) setVol(savedVol);
                 }
             };
             getContentResolver().registerContentObserver(Settings.System.CONTENT_URI, true, volumeObserver);
         } catch (Throwable ignored) {}
     }
 
-    private void toggleKioskMode(boolean enable) {
-        try {
-            if (enable) {
-                applyImmersive(true);
-                setVol(savedVol);
-                try { startLockTask(); } catch (Throwable ignored) {}
-            } else {
-                applyImmersive(false);
-                try { stopLockTask(); } catch (Throwable ignored) {}
-            }
-        } catch (Throwable ignored) {}
-    }
-
-    private void bringBackNow() {
+    private void bringBackViaPendingIntent() {
         try {
             if (isAlarmRinging && strictLock) {
                 setVol(savedVol);
                 applyImmersive(true);
-                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                if (am != null) am.moveTaskToFront(getTaskId(), ActivityManager.MOVE_TASK_WITH_HOME);
                 Intent back = new Intent(this, MainActivity.class);
-                back.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(back);
+                back.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                PendingIntent pi = PendingIntent.getActivity(this, 4004, back, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                pi.send();
             }
         } catch (Throwable ignored) {}
     }
@@ -85,12 +69,12 @@ public class MainActivity extends BridgeActivity {
                 if (isAlarmRinging && strictLock) {
                     setVol(savedVol);
                     applyImmersive(true);
-                    if (!hasWindowFocus()) bringBackNow();
+                    if (!hasWindowFocus()) bringBackViaPendingIntent();
                 }
-                lockHandler.postDelayed(this, 100);
+                lockHandler.postDelayed(this, 150);
             }
         };
-        lockHandler.postDelayed(guardTask, 100);
+        lockHandler.postDelayed(guardTask, 150);
     }
 
     @Override protected void onNewIntent(Intent i) {
@@ -106,7 +90,7 @@ public class MainActivity extends BridgeActivity {
                 if (getBridge() != null && getBridge().getWebView() != null) {
                     getBridge().getWebView().postDelayed(() -> {
                         try { getBridge().getWebView().evaluateJavascript("if(window.onNativeWake) window.onNativeWake(" + payload + ");", null); } catch (Throwable ignored) {}
-                    }, 450);
+                    }, 500);
                 }
             }
         } catch (Throwable ignored) {}
@@ -137,6 +121,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override public void onBackPressed() { if (!isAlarmRinging || !strictLock) super.onBackPressed(); }
+    @Override protected void onUserLeaveHint() { super.onUserLeaveHint(); bringBackViaPendingIntent(); }
+    @Override public void onPause() { super.onPause(); bringBackViaPendingIntent(); }
+    @Override public void onStop() { super.onStop(); bringBackViaPendingIntent(); }
+
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
         try {
             int c = e.getKeyCode();
@@ -151,13 +139,6 @@ public class MainActivity extends BridgeActivity {
         return super.dispatchKeyEvent(e);
     }
 
-    @Override public void onPause() { super.onPause(); bringBackNow(); }
-    @Override public void onStop() { super.onStop(); bringBackNow(); }
-    @Override public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (isAlarmRinging && strictLock) { applyImmersive(true); setVol(savedVol); if (!hasFocus) bringBackNow(); }
-    }
-
     public class Bridge {
         @JavascriptInterface public void setRinging(boolean s) { setRinging(s, savedVol, false); }
         @JavascriptInterface public void setRinging(boolean s, int v) { setRinging(s, v, false); }
@@ -165,7 +146,11 @@ public class MainActivity extends BridgeActivity {
             isAlarmRinging = s;
             savedVol = v;
             strictLock = (s && lock);
-            runOnUiThread(() -> toggleKioskMode(isAlarmRinging && strictLock));
+            runOnUiThread(() -> {
+                applyImmersive(isAlarmRinging && strictLock);
+                if (isAlarmRinging) setVol(savedVol);
+                else stopService(new Intent(MainActivity.this, AlarmForegroundService.class));
+            });
         }
         @JavascriptInterface public void setVolume(int v) {
             savedVol = v;
@@ -174,14 +159,25 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface public boolean canDrawOverlays() {
             try { return Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(MainActivity.this); } catch (Throwable t) { return true; }
         }
-        @JavascriptInterface public void requestOverlayPermission() {}
+        @JavascriptInterface public void requestOverlayPermission() {
+            try {
+                if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(MainActivity.this)) {
+                    Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                }
+            } catch (Throwable ignored) {}
+        }
         @JavascriptInterface public void scheduleNextAlarm(long ms) {
             String cur = getSharedPreferences("sa_prefs", MODE_PRIVATE).getString("next_payload", "{}");
             scheduleNextAlarmWithData(ms, cur);
         }
         @JavascriptInterface public void scheduleNextAlarmWithData(long ms, String json) {
             try {
-                getSharedPreferences("sa_prefs", MODE_PRIVATE).edit().putString("next_payload", json).apply();
+                getSharedPreferences("sa_prefs", MODE_PRIVATE).edit()
+                    .putLong("next_ts", ms)
+                    .putString("next_payload", json)
+                    .apply();
                 AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
                 PendingIntent pi = PendingIntent.getBroadcast(MainActivity.this, 1001, new Intent(MainActivity.this, AlarmReceiver.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
                 if (am != null) {
