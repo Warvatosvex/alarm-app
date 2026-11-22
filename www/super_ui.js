@@ -2752,7 +2752,7 @@
       singleRow.style.display = c.mode === "single" ? "block" : "none";
       rndRow.style.display = c.mode === "random" ? "flex" : "none";
       customRow.style.display = c.mode === "custom" ? "block" : "none";
-      const tDW = document.getElementById("tCleanDiffRng")?.parentElement; if (tDW) tDW.style.display = c.mode === "none" ? "none" : "block"; qSum.innerText = c.queue.length ? `В очереди (${c.queue.length}): ${c.queue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
+      const tDW = document.getElementById("tCleanDiffRng")?.parentElement; if (tDW) tDW.style.display = c.mode === "none" ? "none" : "block"; const tDW = document.getElementById("tCleanDiffRng")?.parentElement; if (tDW) tDW.style.display = c.mode === "none" ? "none" : "block"; qSum.innerText = c.queue.length ? `В очереди (${c.queue.length}): ${c.queue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
     };
 
     modeSel.onchange = () => { window.saveProfile15Config("test", { mode: modeSel.value }); refreshView(); };
@@ -2981,7 +2981,7 @@
       singleRow.style.display = modeSel.value === "single" ? "block" : "none";
       rndRow.style.display = modeSel.value === "random" ? "flex" : "none";
       customRow.style.display = modeSel.value === "custom" ? "block" : "none";
-      const sDW = document.getElementById("ser25DiffRng")?.parentElement; if (sDW) sDW.style.display = modeSel.value === "none" ? "none" : "block"; qSum.innerText = serQueue.length ? `В очереди (${serQueue.length}): ${serQueue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
+      const sDW = document.getElementById("ser25DiffRng")?.parentElement; if (sDW) sDW.style.display = modeSel.value === "none" ? "none" : "block"; const sDW = document.getElementById("ser25DiffRng")?.parentElement; if (sDW) sDW.style.display = modeSel.value === "none" ? "none" : "block"; qSum.innerText = serQueue.length ? `В очереди (${serQueue.length}): ${serQueue.map(id => "№" + id).join(" → ")}` : "Очередь пуста (0 заданий)";
     };
     modeSel.onchange = syncRows;
     document.getElementById("ser25All25").onclick = () => { rndCnt.value = "25"; };

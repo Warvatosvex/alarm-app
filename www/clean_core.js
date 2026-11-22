@@ -112,10 +112,14 @@
     const mSel = document.getElementById("ccModeSel");
     const initDWrap = document.getElementById("ccDiffRng")?.parentElement;
     if (initDWrap) initDWrap.style.display = mSel.value === "none" ? "none" : "block";
+    const initDWrap = document.getElementById("ccDiffRng")?.parentElement;
+    if (initDWrap) initDWrap.style.display = mSel.value === "none" ? "none" : "block";
     mSel.onchange = () => {
       document.getElementById("ccSingleRow").style.display = mSel.value === "single" ? "block" : "none";
       document.getElementById("ccRndRow").style.display = mSel.value === "random" ? "flex" : "none";
       document.getElementById("ccCustomRow").style.display = mSel.value === "custom" ? "block" : "none";
+      const dWrap = document.getElementById("ccDiffRng")?.parentElement;
+      if (dWrap) dWrap.style.display = mSel.value === "none" ? "none" : "block";
       const dWrap = document.getElementById("ccDiffRng")?.parentElement;
       if (dWrap) dWrap.style.display = mSel.value === "none" ? "none" : "block";
     };
