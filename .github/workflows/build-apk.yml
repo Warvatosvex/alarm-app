@@ -1,4 +1,4 @@
-﻿name: Android APK Build
+name: Android APK Build
 on: [push]
 jobs:
   build:
@@ -9,6 +9,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
