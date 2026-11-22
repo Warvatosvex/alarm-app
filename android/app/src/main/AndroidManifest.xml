@@ -1,57 +1,35 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://android.com"
-    xmlns:tools="http://android.com">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.REORDER_TASKS" />
-
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme"
-        tools:replace="android:allowBackup">
-
-        <activity
-            android:name=".MainActivity"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
-            android:exported="true"
-            android:label="@string/title_activity_main"
-            android:launchMode="singleTask"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            android:theme="@style/AppTheme.NoActionBarLaunch">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <receiver android:name=".AlarmReceiver" android:enabled="true" android:exported="true" />
-        <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
-
-        <service android:name=".AlarmForegroundService" android:enabled="true" android:exported="false" android:foregroundServiceType="mediaPlayback" />
-
-        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true">
-            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
-        </provider>
-    </application>
+<?xml version="1.0" encoding="utf-16"?>
+<manifest xmlns:android="http://android.com" xmlns:tools="http://android.com">
+  <uses-permission tools:name="android.permission.INTERNET" />
+  <uses-permission tools:name="android.permission.WAKE_LOCK" />
+  <uses-permission tools:name="android.permission.VIBRATE" />
+  <uses-permission tools:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission tools:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <uses-permission tools:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <uses-permission tools:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <uses-permission tools:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission tools:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission tools:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission tools:name="android.permission.REORDER_TASKS" />
+  <application tools:roundIcon="@mipmap/ic_launcher_round" tools:theme="@style/AppTheme" tools:icon="@mipmap/ic_launcher" tools:supportsRtl="true" tools:allowBackup="true" tools:label="@string/app_name" tools:replace="android:allowBackup">
+    <activity tools:launchMode="singleTask" tools:label="@string/title_activity_main" tools:turnScreenOn="true" tools:showWhenLocked="true" tools:exported="true" tools:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation" tools:name=".MainActivity" tools:theme="@style/AppTheme.NoActionBarLaunch">
+      <intent-filter>
+        <action tools:name="android.intent.action.MAIN" />
+        <category tools:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    <receiver tools:enabled="true" tools:name=".AlarmReceiver" tools:exported="true" />
+    <receiver tools:enabled="true" tools:name=".BootReceiver" tools:exported="true">
+      <intent-filter>
+        <action tools:name="android.intent.action.BOOT_COMPLETED" />
+        <action tools:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+        <action tools:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action tools:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+    <service tools:enabled="true" tools:name=".AlarmForegroundService" tools:exported="false" tools:foregroundServiceType="mediaPlayback" />
+    <provider tools:grantUriPermissions="true" tools:name="androidx.core.content.FileProvider" tools:exported="false" tools:authorities="${applicationId}.fileprovider">
+      <meta-data tools:resource="@xml/file_paths" tools:name="android.support.FILE_PROVIDER_PATHS" />
+    </provider>
+  </application>
 </manifest>
